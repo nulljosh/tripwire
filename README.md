@@ -1,4 +1,4 @@
-# drift
+# tripwire
 
 Every API you depend on ships breaking changes whenever it feels like it.
 
@@ -37,4 +37,8 @@ node test.js
 npx wrangler deploy
 ```
 
-Live at drift.trommatic.workers.dev.
+Live at tripwire.trommatic.workers.dev.
+
+## Architecture
+
+<img src="architecture.svg" width="600">

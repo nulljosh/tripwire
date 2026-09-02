@@ -1,4 +1,4 @@
-// drift: watch vendor OpenAPI specs, diff on change, open a GitHub issue
+// tripwire: watch vendor OpenAPI specs, diff on change, open a GitHub issue
 // in the repos that call the endpoints that changed.
 import watches from './watches.json' with { type: 'json' };
 
@@ -39,7 +39,7 @@ const breaking = d => d.removed.length + d.changed.length;
 async function gh(env, path, init = {}) {
   const res = await fetch(GH + path, {
     ...init,
-    headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'drift', Accept: 'application/vnd.github+json', ...(init.headers || {}) }
+    headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'tripwire', Accept: 'application/vnd.github+json', ...(init.headers || {}) }
   });
   if (!res.ok) throw new Error(`${path} -> ${res.status} ${await res.text()}`);
   return res.json();
@@ -73,10 +73,10 @@ async function openIssue(env, w, d) {
   lines.push('---', 'Paste into Claude Code: `fix every call site listed above against the new spec at ' + w.spec + '`');
   return gh(env, `/repos/${w.repo}/issues`, {
     method: 'POST',
-    body: JSON.stringify({ title: `[drift] ${w.name}: ${d.removed.length} removed, ${d.changed.length} changed`, body: lines.join('\n'), labels: ['drift'] })
+    body: JSON.stringify({ title: `[tripwire] ${w.name}: ${d.removed.length} removed, ${d.changed.length} changed`, body: lines.join('\n'), labels: ['tripwire'] })
   }).catch(async e => { // label may not exist
     if (!String(e).includes('422')) throw e;
-    return gh(env, `/repos/${w.repo}/issues`, { method: 'POST', body: JSON.stringify({ title: `[drift] ${w.name}`, body: lines.join('\n') }) });
+    return gh(env, `/repos/${w.repo}/issues`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] ${w.name}`, body: lines.join('\n') }) });
   });
 }
 
@@ -84,7 +84,7 @@ export async function run(env) {
   const report = [];
   for (const w of watches) {
     try {
-      const res = await fetch(w.spec, { headers: { 'User-Agent': 'drift' } });
+      const res = await fetch(w.spec, { headers: { 'User-Agent': 'tripwire' } });
       if (!res.ok) throw new Error(`spec ${res.status}`);
       const text = await res.text();
       const spec = JSON.parse(text);

@@ -1,4 +1,4 @@
-name = "drift"
+name = "tripwire"
 main = "worker.js"
 compatibility_date = "2025-07-01"
 workers_dev = true
