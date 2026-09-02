@@ -82,7 +82,7 @@ a spec, add it.
 |--------|----------|----------|
 | `GITHUB_TOKEN` | code search + opening issues; needs `repo` scope | `gh auth token \| npx wrangler secret put GITHUB_TOKEN` |
 | `RUN_KEY` | guards `POST /api/run` | `openssl rand -hex 16 \| tee .runkey \| npx wrangler secret put RUN_KEY` |
-| `SUPABASE_KEY` | `$SUPABASE_KEY` header in watches | `supabase projects api-keys --project-ref <ref>` then `wrangler secret put` |
+| `SUPABASE_KEY` | `$SUPABASE_KEY` header in watches. PostgREST only serves the OpenAPI root to the `service_role` key (anon and publishable both 401), so this is the service key. It lives only in the worker secret, never in git. | `supabase projects api-keys --project-ref <ref>`, copy the `service_role` one, `wrangler secret put SUPABASE_KEY` |
 
 Wrangler on this machine needs OAuth, not the DNS token: prefix commands with
 `env -u CLOUDFLARE_API_TOKEN`.
