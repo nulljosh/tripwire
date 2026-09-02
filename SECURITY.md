@@ -2,9 +2,10 @@
 
 ## Reporting
 
-Email **trommatic@icloud.com**. Please don't open a public issue for anything exploitable.
-Expect a reply within a week. Solo side project: no bug bounty, no formal SLA.
+Found something? Email **trommatic@icloud.com**. Don't open a public issue for anything exploitable.
+
+You'll hear back within a week. This is a solo side project. No bounty, no SLA, just a reply.
 
 ## Supported versions
 
-Only the deployed version and the tip of `main` are supported.
+The deployed version and the tip of `main`. Nothing else.
