@@ -1,0 +1,1 @@
+{ "name": "drift", "private": true, "type": "module", "scripts": { "test": "node test.js", "deploy": "wrangler deploy" } }

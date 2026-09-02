@@ -1,0 +1,11 @@
+name = "drift"
+main = "worker.js"
+compatibility_date = "2025-07-01"
+workers_dev = true
+
+[triggers]
+crons = ["0 */6 * * *"]
+
+[[kv_namespaces]]
+binding = "KV"
+id = "d78a9e892eaa44ccb76f61f6f81ace84"
