@@ -1,4 +1,23 @@
 [
-  { "name": "petstore", "spec": "https://petstore3.swagger.io/api/v3/openapi.json", "repo": "nulljosh/tripwire" },
-  { "name": "github", "spec": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json", "repo": "nulljosh/tripwire" }
+  {
+    "name": "stripe",
+    "spec": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
+    "repos": ["nulljosh/healstack", "nulljosh/epiphany", "nulljosh/sparkjar", "nulljosh/talli"]
+  },
+  {
+    "name": "github",
+    "spec": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
+    "repos": ["nulljosh/cadence", "nulljosh/epiphany", "nulljosh/nimble", "nulljosh/sparkjar"]
+  },
+  {
+    "name": "resend",
+    "spec": "https://raw.githubusercontent.com/resend/resend-openapi/main/resend.json",
+    "repos": ["nulljosh/sparkjar"]
+  },
+  {
+    "name": "supabase-spark-db",
+    "spec": "https://tjsxsqlxjmanwvmywwvw.supabase.co/rest/v1/",
+    "headers": { "apikey": "$SUPABASE_KEY" },
+    "repos": ["nulljosh/sparkjar", "nulljosh/litigate", "nulljosh/lexly", "nulljosh/healstack", "nulljosh/homeward", "nulljosh/bookrank", "nulljosh/bcgd"]
+  }
 ]

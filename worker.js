@@ -84,7 +84,9 @@ export async function run(env) {
   const report = [];
   for (const w of watches) {
     try {
-      const res = await fetch(w.spec, { headers: { 'User-Agent': 'tripwire' } });
+      const headers = { 'User-Agent': 'tripwire' };
+      for (const [k, v] of Object.entries(w.headers || {})) headers[k] = v.startsWith('$') ? env[v.slice(1)] : v;
+      const res = await fetch(w.spec, { headers });
       if (!res.ok) throw new Error(`spec ${res.status}`);
       const text = await res.text();
       const spec = JSON.parse(text);
@@ -93,8 +95,9 @@ export async function run(env) {
       if (!prev) { await env.KV.put(key, text); report.push({ name: w.name, status: 'baseline' }); continue; }
       const d = diff(prev, spec);
       if (!breaking(d) && !d.added.length) { report.push({ name: w.name, status: 'unchanged' }); continue; }
-      let issue = null;
-      if (breaking(d)) issue = (await openIssue(env, w, d)).html_url;
+      const issue = [];
+      // ponytail: one issue per repo, sequential; fine at <20 repos
+      if (breaking(d)) for (const repo of w.repos || [w.repo]) issue.push((await openIssue(env, { ...w, repo }, d)).html_url);
       await env.KV.put(key, text);
       report.push({ name: w.name, status: 'changed', diff: d, issue });
     } catch (e) {
@@ -115,6 +118,6 @@ export default {
     }
     if (url.pathname !== '/api') return env.ASSETS.fetch(req);
     const last = await env.KV.get('last', 'json');
-    return Response.json({ watches: watches.map(w => ({ name: w.name, repo: w.repo })), last });
+    return Response.json({ watches: watches.map(w => ({ name: w.name, repos: w.repos || [w.repo] })), last });
   }
 };
