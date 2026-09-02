@@ -2,6 +2,12 @@ name = "tripwire"
 main = "worker.js"
 compatibility_date = "2025-07-01"
 workers_dev = true
+routes = [{ pattern = "tripwire.heyitsmejosh.com", custom_domain = true }]
+
+[assets]
+directory = "web"
+binding = "ASSETS"
+run_worker_first = ["/api", "/api/*"]
 
 [triggers]
 crons = ["0 */6 * * *"]

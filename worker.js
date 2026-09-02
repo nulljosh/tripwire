@@ -109,10 +109,11 @@ export default {
   scheduled: (_ev, env, ctx) => ctx.waitUntil(run(env)),
   async fetch(req, env) {
     const url = new URL(req.url);
-    if (url.pathname === '/run' && req.method === 'POST') {
+    if (url.pathname === '/api/run' && req.method === 'POST') {
       if (req.headers.get('x-key') !== env.RUN_KEY) return new Response('nope', { status: 401 });
       return Response.json(await run(env));
     }
+    if (url.pathname !== '/api') return env.ASSETS.fetch(req);
     const last = await env.KV.get('last', 'json');
     return Response.json({ watches: watches.map(w => ({ name: w.name, repo: w.repo })), last });
   }

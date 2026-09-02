@@ -26,8 +26,8 @@ v0 opens the issue. v1 opens the PR with the fix already written. After that the
 
 ```
 watches.json   { name, spec (openapi json url), repo (owner/name) }
-GET  /         last run
-POST /run      x-key: $RUN_KEY, force a run
+GET  /api      last run
+POST /api/run  x-key: $RUN_KEY, force a run
 secrets        GITHUB_TOKEN (repo + issues), RUN_KEY
 cron           every 6h
 ```
@@ -37,7 +37,7 @@ node test.js
 npx wrangler deploy
 ```
 
-Live at tripwire.trommatic.workers.dev.
+Live at [tripwire.heyitsmejosh.com](https://tripwire.heyitsmejosh.com).
 
 ## Architecture
 
