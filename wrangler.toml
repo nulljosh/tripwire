@@ -15,3 +15,6 @@ crons = ["0 */6 * * *"]
 [[kv_namespaces]]
 binding = "KV"
 id = "d78a9e892eaa44ccb76f61f6f81ace84"
+
+[observability]
+enabled = true
