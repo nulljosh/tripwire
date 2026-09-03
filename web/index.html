@@ -23,22 +23,34 @@
 :root[data-theme="dark"] {
   --bg: #121316; --bg2: #1a1b1f; --text: #ececf0; --text2: rgba(236,236,240,.62);
   --border: rgba(236,236,240,.12); --accent-soft: #2a140c; --link: #ff7a4a; }
+:root { --diff-rm: #b42318; --diff-add: #1a7f37; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --diff-rm: #ff6b6b; --diff-add: #56d364; } }
+:root[data-theme="dark"] { --diff-rm: #ff6b6b; --diff-add: #56d364; }
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.6; -webkit-font-smoothing: antialiased; }
 a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 img { max-width: 100%; }
 .container { max-width: 720px; margin: 0 auto; padding: 0 1.5rem; }
-.hero { position: relative; overflow: hidden; background: var(--accent-soft); padding: 5rem 0 4rem; text-align: center; }
-.hero::before {
-  content: ""; position: absolute; inset: -20%; z-index: 0; pointer-events: none;
-  background-image: repeating-linear-gradient(115deg, transparent 0 48px, var(--accent) 48px 49px, transparent 49px 96px);
-  opacity: .16;
-  animation: hero-drift 16s ease-in-out infinite alternate;
-}
-@keyframes hero-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(60px, -40px, 0); } }
-@media (prefers-reduced-motion: reduce) { .hero::before { animation: none; } }
-.hero .container { position: relative; z-index: 1; }
+.hero { position: relative; isolation: isolate; overflow: hidden; background: var(--accent-soft); padding: 5rem 0 4rem; text-align: center; }
+.hero .container { position: relative; z-index: 2; }
+/* a slow-drifting wall of tiny diff cards, the product's own output as wallpaper */
+.hero-wall { position: absolute; inset: -8%; z-index: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; opacity: .45; pointer-events: none; user-select: none; }
+.wall-col { display: flex; min-width: 0; flex-direction: column; gap: 10px; }
+.wall-col.up   { animation: wall-up   var(--dur) linear infinite; }
+.wall-col.down { animation: wall-down var(--dur) linear infinite; }
+@keyframes wall-up   { from { transform: translateY(0); }    to { transform: translateY(-50%); } }
+@keyframes wall-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .wall-col.up, .wall-col.down { animation: none; } }
+.wtile { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .55rem .65rem; font: .72rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; overflow: hidden; }
+.wt-path { color: var(--text2); font-size: .66rem; margin-bottom: .1rem; }
+.wt-line.rm { color: var(--diff-rm); }
+.wt-line.add { color: var(--diff-add); }
+.wt-meta { color: var(--text2); font-size: .62rem; margin-top: .1rem; }
+.hero::after { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse 55% 60% at 50% 45%, var(--accent-soft) 20%, transparent 80%),
+    linear-gradient(var(--accent-soft), transparent 30%, transparent 62%, var(--accent-soft) 96%),
+    color-mix(in srgb, var(--accent-soft) 50%, transparent); }
 .hero img { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 1.25rem; }
 h1 { font-size: clamp(2rem, 6vw, 3rem); line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 1rem; }
 .lede { font-size: 1.2rem; color: var(--text2); max-width: 32em; margin: 0 auto 2rem; }
@@ -54,7 +66,9 @@ footer { padding: 2.5rem 0; color: var(--text2); font-size: .9rem; text-align: c
 </style>
 </head>
 <body>
-<div class="hero"><div class="container">
+<div class="hero">
+  <div class="hero-wall" id="heroWall" aria-hidden="true"></div>
+  <div class="container">
   <img src="icon.svg" alt="">
   <h1>Know when an API breaks your code.</h1>
   <p class="lede">Every API you depend on ships breaking changes whenever it feels like it. Tripwire tells you what broke, in your code, before prod does.</p>
@@ -88,5 +102,38 @@ cron           every 6h</pre>
 </div></section>
 
 <footer><div class="container">Built by <a href="https://heyitsmejosh.com">Josh</a>. Runs on Cloudflare Workers.</div></footer>
+<script>
+// hero wallpaper: columns of tiny diff cards, the kind of thing tripwire actually files
+(function wall() {
+  const host = document.getElementById('heroWall');
+  if (!host) return;
+  const diffs = [
+    { old: 'customer_id', new: 'customer' },
+    { old: 'legacy_id', new: 'external_id' },
+    { path: 'DELETE /v1/charges', files: 3 },
+    { old: 'webhook_secret?', new: 'webhook_secret' },
+    { path: 'GET /v2/messages', files: 1 },
+    { old: 'amount_cents', new: 'amount' },
+    { old: 'Bearer {token}', new: 'ApiKey {token}' },
+    { path: 'POST /v1/refunds', files: 2 },
+    { old: 'currency?', new: 'currency' },
+    { old: 'rate_limit_remaining', new: 'x-ratelimit-remaining' },
+    { path: 'GET /users/{id}', files: 4 },
+    { old: 'card.brand', new: 'card.network' },
+  ];
+  const tile = (d) => d.path
+    ? `<div class="wtile"><div class="wt-path">${d.path}</div><div class="wt-line rm">&minus; gone</div><div class="wt-meta">${d.files} file${d.files === 1 ? '' : 's'}</div></div>`
+    : `<div class="wtile"><div class="wt-line rm">&minus; ${d.old}</div><div class="wt-line add">+ ${d.new}</div></div>`;
+  const cols = Math.max(4, Math.min(8, Math.round(innerWidth / 180)));
+  for (let c = 0; c < cols; c++) {
+    const col = document.createElement('div');
+    col.className = 'wall-col ' + (c % 2 ? 'down' : 'up');
+    col.style.setProperty('--dur', (70 + c * 9) + 's');
+    const items = []; for (let i = 0; i < 6; i++) items.push(tile(diffs[(c * 5 + i) % diffs.length]));
+    col.innerHTML = items.join('') + items.join(''); // doubled so the loop is seamless
+    host.appendChild(col);
+  }
+})();
+</script>
 </body>
 </html>
