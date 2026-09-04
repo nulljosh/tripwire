@@ -1,1 +1,1 @@
-{ "name": "drift", "private": true, "type": "module", "scripts": { "test": "node test.js", "deploy": "wrangler deploy" } }
+{ "name": "drift", "description": "An automated API change detector for your open-source project.", "private": true, "type": "module", "scripts": { "test": "node test.js", "deploy": "wrangler deploy" } }
