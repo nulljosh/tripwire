@@ -45,6 +45,8 @@ npx wrangler deploy
 
 Live at [tripwire.heyitsmejosh.com](https://tripwire.heyitsmejosh.com).
 
+**Terminal:** `swift build && ./.build/debug/tripwire-tui` — see [tui/](tui/)
+
 ## Architecture
 
 <img src="architecture.svg" width="600">
