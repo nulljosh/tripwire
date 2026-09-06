@@ -10,6 +10,12 @@ Stripe renames a field. Some vendor kills an endpoint. You find out when prod 50
 
 That's the gap.
 
+## Screenshots
+
+<p>
+<img src="screenshots/tripwire-1.jpg" alt="Tripwire">
+</p>
+
 ## What it does
 
 A worker polls the vendor's OpenAPI spec on a cron. Keeps the last version. When it changes, it diffs the two: removed endpoints, dropped params, new required fields. Then it goes into your repo, finds the calls that just got nuked, and opens an issue that says
