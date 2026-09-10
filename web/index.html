@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>document.documentElement.classList.add('js')</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tripwire — know when an API breaks your code</title>
@@ -63,6 +64,10 @@ blockquote { border-left: 3px solid var(--accent); padding: .6rem 1rem; backgrou
 code { background: var(--bg2); padding: .1em .4em; border-radius: 5px; font-size: .92em; }
 pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; overflow-x: auto; font-size: .9rem; line-height: 1.5; }
 footer { padding: 2.5rem 0; color: var(--text2); font-size: .9rem; text-align: center; }
+@media (prefers-reduced-motion: no-preference) {
+  html.js .reveal { opacity: 0; transform: translateY(20px); transition: opacity .6s ease-out, transform .6s ease-out; }
+  html.js .reveal.in-view { opacity: 1; transform: translateY(0); }
+}
 </style>
 <link rel="stylesheet" href="devices.css">
 <script>
@@ -158,6 +163,27 @@ cron           every 6h</pre>
     const items = []; for (let i = 0; i < 6; i++) items.push(tile(diffs[(c * 5 + i) % diffs.length]));
     col.innerHTML = items.join('') + items.join(''); // doubled so the loop is seamless
     host.appendChild(col);
+  }
+})();
+</script>
+<script>
+(function(){
+  if (!('IntersectionObserver' in window)) return;
+  document.querySelectorAll('body > section').forEach(function(el){ el.classList.add('reveal'); });
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); } });
+  }, { threshold: 0.15 });
+  document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+
+  var wall = document.getElementById('heroWall');
+  if (wall && matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+    var ticking = false;
+    addEventListener('scroll', function(){
+      if (!ticking) {
+        requestAnimationFrame(function(){ wall.style.transform = 'translateY(' + (scrollY * 0.15) + 'px)'; ticking = false; });
+        ticking = true;
+      }
+    }, { passive: true });
   }
 })();
 </script>
