@@ -35,6 +35,10 @@ export function diff(oldSpec, newSpec) {
 
 // ponytail: only removed + changed ops are breaking; added is FYI.
 const breaking = d => d.removed.length + d.changed.length;
+// ponytail: caps subrequests (Workers free-tier limit is 50/invocation); a shared multi-table
+// DB spec can have hundreds of changed ops across many repos, and each op costs one GitHub
+// code-search call per repo. Budget is shared across the whole watch, not per-repo.
+const OPS_CAP = 8;
 
 async function gh(env, path, init = {}) {
   const res = await fetch(GH + path, {
@@ -46,7 +50,8 @@ async function gh(env, path, init = {}) {
 }
 
 // Where does this repo call a path? GitHub code search, path without leading slash and {params}.
-async function usages(env, repo, opKey) {
+async function usages(env, repo, opKey, budget) {
+  if (budget.n-- <= 0) return null; // over budget: skip the search, still list the op
   const needle = opKey.split(' ')[1].replace(/\{[^}]+\}/g, '').replace(/\/+$/, '');
   if (needle.length < 4) return [];
   const q = encodeURIComponent(`repo:${repo} "${needle}"`);
@@ -56,19 +61,22 @@ async function usages(env, repo, opKey) {
   } catch { return []; } // search is rate-limited / unindexed on tiny repos; best effort
 }
 
-async function openIssue(env, w, d) {
+async function openIssue(env, w, d, budget) {
   const lines = [`\`${w.spec}\` changed and it touches endpoints this repo may call.\n`];
-  for (const op of d.removed) {
-    const files = await usages(env, w.repo, op);
-    lines.push(`### REMOVED \`${op}\``, files.length ? files.map(f => `- ${f}`).join('\n') : '_no usages found by code search_', '');
+  const removed = d.removed.slice(0, OPS_CAP), changed = d.changed.slice(0, OPS_CAP);
+  const fileLines = files => files === null ? '_code search skipped (subrequest budget)_' : files.length ? files.map(f => `- ${f}`).join('\n') : '_no usages found by code search_';
+  for (const op of removed) {
+    const files = await usages(env, w.repo, op, budget);
+    lines.push(`### REMOVED \`${op}\``, fileLines(files), '');
   }
-  for (const c of d.changed) {
-    const files = await usages(env, w.repo, c.op);
+  for (const c of changed) {
+    const files = await usages(env, w.repo, c.op, budget);
     lines.push(`### CHANGED \`${c.op}\``);
     if (c.lostParams.length) lines.push(`- params removed: ${c.lostParams.map(p => `\`${p}\``).join(', ')}`);
     if (c.newRequired.length) lines.push(`- now required: ${c.newRequired.map(p => `\`${p}\``).join(', ')}`);
-    lines.push(files.length ? files.map(f => `- ${f}`).join('\n') : '_no usages found by code search_', '');
+    lines.push(fileLines(files), '');
   }
+  if (d.removed.length > OPS_CAP || d.changed.length > OPS_CAP) lines.push(`_...and ${d.removed.length + d.changed.length - OPS_CAP * 2} more ops not detailed here (capped)._`, '');
   if (d.added.length) lines.push(`### Added (FYI)`, d.added.map(a => `- \`${a}\``).join('\n'), '');
   lines.push('---', 'Paste into Claude Code: `fix every call site listed above against the new spec at ' + w.spec + '`');
   return gh(env, `/repos/${w.repo}/issues`, {
@@ -95,10 +103,13 @@ export async function run(env) {
       if (!prev) { await env.KV.put(key, text); report.push({ name: w.name, status: 'baseline' }); continue; }
       const d = diff(prev, spec);
       if (!breaking(d) && !d.added.length) { report.push({ name: w.name, status: 'unchanged' }); continue; }
+      await env.KV.put(key, text); // save baseline first so a downstream failure can't wedge the diff on repeat
       const issue = [];
-      // ponytail: one issue per repo, sequential; fine at <20 repos
-      if (breaking(d)) for (const repo of w.repos || [w.repo]) issue.push((await openIssue(env, { ...w, repo }, d)).html_url);
-      await env.KV.put(key, text);
+      // ponytail: one issue per repo, sequential; fine at <20 repos. Budget shared across
+      // repos in this watch keeps a wide-table spec (many repos x many changed ops) under
+      // the Workers per-invocation subrequest limit.
+      const budget = { n: 30 };
+      if (breaking(d)) for (const repo of w.repos || [w.repo]) issue.push((await openIssue(env, { ...w, repo }, d, budget)).html_url);
       report.push({ name: w.name, status: 'changed', diff: d, issue });
     } catch (e) {
       report.push({ name: w.name, status: 'error', error: String(e.message || e) });
