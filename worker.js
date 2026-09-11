@@ -88,6 +88,64 @@ async function openIssue(env, w, d, budget) {
   });
 }
 
+// v1: instead of just filing the issue, patch the flagged files and open a PR.
+// ponytail: one file-set patch per repo via Workers AI, capped at 3 files (git blob/commit/PR
+// calls are expensive against the shared subrequest budget); falls back to the issue silently
+// if there's nothing to patch or the model output doesn't parse.
+const PATCH_FILES_CAP = 3;
+
+async function contents(env, repo, path, ref) {
+  try {
+    return await gh(env, `/repos/${repo}/contents/${path}?ref=${ref}`);
+  } catch { return null; }
+}
+
+async function generatePatch(env, w, d, files) {
+  const prompt = `The API at ${w.spec} changed. Removed/changed operations:\n${JSON.stringify(d.removed.concat(d.changed.map(c => c.op)))}\n\n` +
+    `Update these files to work with the new API shape. Return ONLY a JSON object mapping file path to the FULL new file content, no markdown fences, no commentary.\n\n` +
+    files.map(f => `--- ${f.path} ---\n${f.text}`).join('\n\n');
+  const res = await env.AI.run('@cf/qwen/qwen2.5-coder-32b-instruct', { messages: [{ role: 'user', content: prompt }] });
+  try { return JSON.parse((res.response || '').trim().replace(/^```json?\n?|```$/g, '')); } catch { return null; }
+}
+
+async function openFixPR(env, w, d, budget, issueUrl) {
+  if (!env.AI) return null;
+  const removed = d.removed.slice(0, OPS_CAP), changed = d.changed.slice(0, OPS_CAP);
+  const paths = new Set();
+  for (const op of removed.concat(changed.map(c => c.op))) {
+    if (paths.size >= PATCH_FILES_CAP || budget.n <= 0) break;
+    const found = await usages(env, w.repo, op, budget);
+    for (const p of found || []) if (paths.size < PATCH_FILES_CAP) paths.add(p);
+  }
+  if (!paths.size) return null;
+
+  const repoInfo = await gh(env, `/repos/${w.repo}`);
+  const base = repoInfo.default_branch;
+  const ref = await gh(env, `/repos/${w.repo}/git/ref/heads/${base}`);
+  const files = [];
+  for (const path of paths) {
+    const c = await contents(env, w.repo, path, base);
+    if (c && c.encoding !== 'base64') continue;
+    if (c) files.push({ path, text: atob(c.content.replace(/\n/g, '')), sha: c.sha });
+  }
+  if (!files.length) return null;
+
+  const patch = await generatePatch(env, w, d, files);
+  if (!patch) return null;
+
+  const branch = `tripwire/${w.name}-${Date.now()}`;
+  await gh(env, `/repos/${w.repo}/git/refs`, { method: 'POST', body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: ref.object.sha }) });
+  for (const f of files) {
+    if (!patch[f.path]) continue;
+    await gh(env, `/repos/${w.repo}/contents/${f.path}`, {
+      method: 'PUT',
+      body: JSON.stringify({ message: `tripwire: fix ${f.path} for ${w.name} API change`, content: btoa(patch[f.path]), sha: f.sha, branch })
+    });
+  }
+  const body = `Auto-generated fix for the API drift in ${issueUrl || w.name}.\n\nReview before merging, this was written by a model against the new spec at ${w.spec}.`;
+  return gh(env, `/repos/${w.repo}/pulls`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] fix: ${w.name} API drift`, head: branch, base, body }) });
+}
+
 export async function run(env) {
   const report = [];
   for (const w of watches) {
@@ -109,7 +167,14 @@ export async function run(env) {
       // repos in this watch keeps a wide-table spec (many repos x many changed ops) under
       // the Workers per-invocation subrequest limit.
       const budget = { n: 30 };
-      if (breaking(d)) for (const repo of w.repos || [w.repo]) issue.push((await openIssue(env, { ...w, repo }, d, budget)).html_url);
+      if (breaking(d)) for (const repo of w.repos || [w.repo]) {
+        const opened = await openIssue(env, { ...w, repo }, d, budget);
+        issue.push(opened.html_url);
+        try {
+          const pr = await openFixPR(env, { ...w, repo }, d, budget, opened.html_url);
+          if (pr) issue.push(pr.html_url);
+        } catch { /* best effort, the issue already has the full diff */ }
+      }
       report.push({ name: w.name, status: 'changed', diff: d, issue });
     } catch (e) {
       report.push({ name: w.name, status: 'error', error: String(e.message || e) });
