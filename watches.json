@@ -18,6 +18,6 @@
     "name": "supabase-spark-db",
     "spec": "https://tjsxsqlxjmanwvmywwvw.supabase.co/rest/v1/",
     "headers": { "apikey": "$SUPABASE_KEY" },
-    "repos": ["nulljosh/sparkjar", "nulljosh/litigate", "nulljosh/lexly", "nulljosh/healstack", "nulljosh/homeward", "nulljosh/bookrank", "nulljosh/bcgd"]
+    "repos": ["nulljosh/sparkjar", "nulljosh/litigate", "nulljosh/lexly", "nulljosh/healstack", "nulljosh/homeward", "nulljosh/bookrank", "nulljosh/bcgd", "nulljosh/co-stanza", "nulljosh/epiphany", "nulljosh/inkpress", "nulljosh/quotestreak"]
   }
 ]
