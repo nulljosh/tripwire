@@ -1,9 +1,28 @@
 // tripwire: watch vendor OpenAPI specs, diff on change, open a GitHub issue
-// in the repos that call the endpoints that changed.
+// in the repos that call the endpoints that changed. Also watches CI on every
+// repo and flags red builds.
 import watches from './watches.json' with { type: 'json' };
 
 const GH = 'https://api.github.com';
 const METHODS = ['get', 'post', 'put', 'patch', 'delete'];
+const GH_USER = 'nulljosh';
+const REPO_LIST_TTL = 6 * 60 * 60; // repo list changes rarely, 6h cache keeps this off the subrequest budget
+
+// ponytail: no more hand-maintained repo arrays in watches.json, list every
+// non-fork, non-archived repo on the account and let usages() decide per-watch
+// relevance via code search instead.
+async function listRepos(env) {
+  const cached = await env.KV.get('repos:list', 'json');
+  if (cached) return cached;
+  const repos = [];
+  for (let page = 1; page <= 5; page++) {
+    const batch = await gh(env, `/users/${GH_USER}/repos?per_page=100&page=${page}&type=owner`);
+    repos.push(...batch.filter(r => !r.fork && !r.archived).map(r => ({ full_name: r.full_name, default_branch: r.default_branch })));
+    if (batch.length < 100) break;
+  }
+  await env.KV.put('repos:list', JSON.stringify(repos), { expirationTtl: REPO_LIST_TTL });
+  return repos;
+}
 
 // Flatten an OpenAPI doc into { "GET /path": { params:[...], required:[...] } }
 export function ops(spec) {
@@ -167,21 +186,73 @@ export async function run(env) {
       // repos in this watch keeps a wide-table spec (many repos x many changed ops) under
       // the Workers per-invocation subrequest limit.
       const budget = { n: 30 };
-      if (breaking(d)) for (const repo of w.repos || [w.repo]) {
-        const opened = await openIssue(env, { ...w, repo }, d, budget);
-        issue.push(opened.html_url);
-        try {
-          const pr = await openFixPR(env, { ...w, repo }, d, budget, opened.html_url);
-          if (pr) issue.push(pr.html_url);
-        } catch { /* best effort, the issue already has the full diff */ }
+      if (breaking(d)) {
+        const allRepos = (await listRepos(env)).map(r => r.full_name);
+        for (const repo of allRepos) {
+          if (budget.n <= 0) break;
+          // Dynamic mode: only file an issue where code search actually finds a call site,
+          // otherwise every repo on the account would get a blind issue on every drift.
+          const anyOp = d.removed[0] || d.changed[0]?.op;
+          const hit = await usages(env, repo, anyOp, budget);
+          if (!hit || !hit.length) continue;
+          const opened = await openIssue(env, { ...w, repo }, d, budget);
+          issue.push(opened.html_url);
+          try {
+            const pr = await openFixPR(env, { ...w, repo }, d, budget, opened.html_url);
+            if (pr) issue.push(pr.html_url);
+          } catch { /* best effort, the issue already has the full diff */ }
+        }
       }
       report.push({ name: w.name, status: 'changed', diff: d, issue });
     } catch (e) {
       report.push({ name: w.name, status: 'error', error: String(e.message || e) });
     }
   }
-  await env.KV.put('last', JSON.stringify({ at: new Date().toISOString(), report }));
+  const ci = await ciCheck(env);
+  await env.KV.put('last', JSON.stringify({ at: new Date().toISOString(), report, ci }));
   return report;
+}
+
+// Flag red CI on every repo's default branch. Opens one issue per newly-failed run (dedup'd by
+// run id in KV so a repeat cron tick doesn't refile it), naming the failed jobs/steps and linking
+// the run. ponytail: issue-only, no auto-fix PR here — a CI failure's root cause (flaky test,
+// real regression, infra) isn't inferable from the log alone the way an OpenAPI diff is, so a
+// blind patch across every repo on the account is the wrong kind of lazy. Upgrade path: once this
+// has run for a while and the false-positive rate on real regressions is known, feed the failed
+// job's log tail to the same generatePatch() used for API drift, scoped to one file at a time.
+async function ciCheck(env) {
+  const repos = await listRepos(env);
+  const flagged = [];
+  for (const { full_name: repo, default_branch: branch } of repos) {
+    try {
+      const runs = await gh(env, `/repos/${repo}/actions/runs?branch=${branch}&status=completed&per_page=1`);
+      const run = runs.workflow_runs?.[0];
+      if (!run || run.conclusion === 'success') continue;
+      const seenKey = `ci:${repo}`;
+      const seen = await env.KV.get(seenKey);
+      if (seen === String(run.id)) continue; // already reported this run
+      await env.KV.put(seenKey, String(run.id));
+      const jobs = await gh(env, `/repos/${repo}/actions/runs/${run.id}/jobs`);
+      const failedJobs = (jobs.jobs || []).filter(j => j.conclusion === 'failure');
+      const lines = [
+        `CI is red on \`${branch}\`: [${run.name || 'workflow'} #${run.run_number}](${run.html_url}), conclusion \`${run.conclusion}\`.`,
+        '',
+        ...failedJobs.map(j => `- **${j.name}**: ${(j.steps || []).filter(s => s.conclusion === 'failure').map(s => s.name).join(', ') || 'failed'}`),
+        '',
+        '---',
+        'Paste into Claude Code: `the CI run above is failing, fix it`',
+      ];
+      const opened = await gh(env, `/repos/${repo}/issues`, {
+        method: 'POST',
+        body: JSON.stringify({ title: `[tripwire] CI failing: ${run.name || 'workflow'} #${run.run_number}`, body: lines.join('\n'), labels: ['tripwire'] })
+      }).catch(async e => {
+        if (!String(e).includes('422')) throw e;
+        return gh(env, `/repos/${repo}/issues`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] CI failing: ${run.name || 'workflow'} #${run.run_number}`, body: lines.join('\n') }) });
+      });
+      flagged.push({ repo, run: run.html_url, issue: opened.html_url });
+    } catch { /* repo has no Actions runs, or API hiccup; best effort */ }
+  }
+  return flagged;
 }
 
 export default {
@@ -194,6 +265,6 @@ export default {
     }
     if (url.pathname !== '/api') return env.ASSETS.fetch(req);
     const last = await env.KV.get('last', 'json');
-    return Response.json({ watches: watches.map(w => ({ name: w.name, repos: w.repos || [w.repo] })), last });
+    return Response.json({ watches: watches.map(w => ({ name: w.name })), repoCount: (await listRepos(env)).length, last });
   }
 };
