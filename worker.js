@@ -68,6 +68,13 @@ async function gh(env, path, init = {}) {
   return res.json();
 }
 
+// job logs come back as plain text (redirected to blob storage), not JSON
+async function ghLog(env, path) {
+  const res = await fetch(GH + path, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'tripwire' } });
+  if (!res.ok) return '';
+  return res.text();
+}
+
 // Where does this repo call a path? GitHub code search, path without leading slash and {params}.
 async function usages(env, repo, opKey, budget) {
   if (budget.n-- <= 0) return null; // over budget: skip the search, still list the op
@@ -213,13 +220,52 @@ export async function run(env) {
   return report;
 }
 
+// Failed job logs mention real repo paths (stack traces, "Cannot find module", linter output).
+// Only try to patch a path if it actually exists in the repo — if it doesn't (e.g. a file that
+// was never committed), there's nothing to safely rewrite and we leave it to the issue.
+const CI_PATH_RE = /[\w][\w\-./]*\.(?:js|mjs|cjs|ts|tsx|jsx|py|swift|go|rb|java|kt)\b/g;
+
+async function openCIFixPR(env, repo, branch, run, logTail) {
+  if (!env.AI || !logTail) return null;
+  const candidates = [...new Set(logTail.match(CI_PATH_RE) || [])].filter(p => p.includes('/')).slice(0, 8);
+  const files = [];
+  for (const path of candidates) {
+    if (files.length >= PATCH_FILES_CAP) break;
+    const c = await contents(env, repo, path, branch);
+    if (c && c.encoding === 'base64') files.push({ path, text: atob(c.content.replace(/\n/g, '')), sha: c.sha });
+  }
+  if (!files.length) return null;
+
+  const prompt = `This CI run failed: ${run.html_url}\nLast lines of the failing job's log:\n${logTail}\n\n` +
+    `Fix these files so the failure above goes away. Return ONLY a JSON object mapping file path to the FULL new file content, no markdown fences, no commentary.\n\n` +
+    files.map(f => `--- ${f.path} ---\n${f.text}`).join('\n\n');
+  const res = await env.AI.run('@cf/qwen/qwen2.5-coder-32b-instruct', { messages: [{ role: 'user', content: prompt }] });
+  let patch;
+  try { patch = JSON.parse((res.response || '').trim().replace(/^```json?\n?|```$/g, '')); } catch { return null; }
+  if (!patch) return null;
+
+  const ref = await gh(env, `/repos/${repo}/git/ref/heads/${branch}`);
+  const prBranch = `tripwire/ci-fix-${run.id}`;
+  await gh(env, `/repos/${repo}/git/refs`, { method: 'POST', body: JSON.stringify({ ref: `refs/heads/${prBranch}`, sha: ref.object.sha }) });
+  let wrote = 0;
+  for (const f of files) {
+    if (!patch[f.path]) continue;
+    await gh(env, `/repos/${repo}/contents/${f.path}`, {
+      method: 'PUT',
+      body: JSON.stringify({ message: `tripwire: fix CI failure in ${f.path}`, content: btoa(patch[f.path]), sha: f.sha, branch: prBranch })
+    });
+    wrote++;
+  }
+  if (!wrote) return null;
+  const body = `Auto-generated fix for the red CI run: ${run.html_url}\n\nReview before merging, this was written by a model against the failing job's log tail.`;
+  return gh(env, `/repos/${repo}/pulls`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] fix: CI failure in #${run.run_number}`, head: prBranch, base: branch, body }) });
+}
+
 // Flag red CI on every repo's default branch. Opens one issue per newly-failed run (dedup'd by
 // run id in KV so a repeat cron tick doesn't refile it), naming the failed jobs/steps and linking
-// the run. ponytail: issue-only, no auto-fix PR here — a CI failure's root cause (flaky test,
-// real regression, infra) isn't inferable from the log alone the way an OpenAPI diff is, so a
-// blind patch across every repo on the account is the wrong kind of lazy. Upgrade path: once this
-// has run for a while and the false-positive rate on real regressions is known, feed the failed
-// job's log tail to the same generatePatch() used for API drift, scoped to one file at a time.
+// the run, then tries a patch PR from the failing job's log tail. ponytail: only patches paths
+// that already exist in the repo (a file that was simply never committed has nothing to rewrite,
+// same as the API-drift fixer's "no usages found" ceiling) and only touches PATCH_FILES_CAP files.
 async function ciCheck(env) {
   const repos = await listRepos(env);
   const flagged = [];
@@ -234,6 +280,7 @@ async function ciCheck(env) {
       await env.KV.put(seenKey, String(run.id));
       const jobs = await gh(env, `/repos/${repo}/actions/runs/${run.id}/jobs`);
       const failedJobs = (jobs.jobs || []).filter(j => j.conclusion === 'failure');
+      const logTail = failedJobs[0] ? (await ghLog(env, `/repos/${repo}/actions/jobs/${failedJobs[0].id}/logs`)).split('\n').slice(-80).join('\n') : '';
       const lines = [
         `CI is red on \`${branch}\`: [${run.name || 'workflow'} #${run.run_number}](${run.html_url}), conclusion \`${run.conclusion}\`.`,
         '',
@@ -249,7 +296,9 @@ async function ciCheck(env) {
         if (!String(e).includes('422')) throw e;
         return gh(env, `/repos/${repo}/issues`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] CI failing: ${run.name || 'workflow'} #${run.run_number}`, body: lines.join('\n') }) });
       });
-      flagged.push({ repo, run: run.html_url, issue: opened.html_url });
+      let pr = null;
+      try { pr = await openCIFixPR(env, repo, branch, run, logTail); } catch { /* best effort, the issue already links the run */ }
+      flagged.push({ repo, run: run.html_url, issue: opened.html_url, pr: pr?.html_url });
     } catch { /* repo has no Actions runs, or API hiccup; best effort */ }
   }
   return flagged;
