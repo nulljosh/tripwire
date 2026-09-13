@@ -3,8 +3,11 @@
 **v1.0.0** | September 2026
 
 Every API you depend on ships breaking changes whenever it feels like it. A
-status page tells everyone the same thing. tripwire tells you what broke in
-your code. One Worker, one file.
+status page tells everyone the same thing, which is useless when what you
+actually need to know is whether it broke you specifically. tripwire exists
+to answer that question instead: it tells you what broke in your code. One
+Worker, one file, because the job is small enough that anything more would
+just be more surface area to maintain.
 
 ## What it does
 
@@ -18,14 +21,19 @@ issue:
 
 ## Design
 
-- **`watches.json`** lists `{ name, spec, repo }`. Adding a vendor is one line.
+- **`watches.json`** lists `{ name, spec, repo }`. Adding a vendor is one line,
+  because the whole point is that watching a new API should never require code.
 - **Spec diff** is structural, over the parsed OpenAPI paths object, not a
-  text diff. Only breaking classes are reported; additions are ignored.
+  text diff, since a text diff would flag reordered fields and cosmetic
+  changes that never break a caller. Only breaking classes are reported;
+  additions are ignored.
 - **Repo search** uses the GitHub code search API scoped to the repo, keyed
-  on the removed path or parameter name. Results are grouped by file in the
-  issue body.
+  on the removed path or parameter name, so the issue points at exactly the
+  lines that need fixing instead of "something in this spec changed."
+  Results are grouped by file in the issue body.
 - **Idempotent.** The issue title embeds the spec version hash, so a re-run
-  never opens a duplicate.
+  never opens a duplicate, which matters on a 6-hour cron that will otherwise
+  spam the same finding forever.
 
 ## Interface
 
@@ -40,8 +48,10 @@ secrets          GITHUB_TOKEN (repo + issues), RUN_KEY
 
 ## Where it goes
 
-v1 opens the PR with the fix already written. After that, the vendor side:
-push fixes into customers' codebases instead of hoping they read the email.
+v1 opens the PR with the fix already written, because an issue still requires
+someone to notice it and do the work; a PR only requires someone to merge it.
+After that, the vendor side: push fixes into customers' codebases instead of
+hoping they read the email.
 
 ## License
 
