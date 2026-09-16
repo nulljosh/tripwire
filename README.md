@@ -4,11 +4,11 @@
 
 ![version](https://img.shields.io/badge/version-v1.0.0-blue) ![license](https://img.shields.io/badge/license-MIT-green) [![GitHub](https://img.shields.io/badge/GitHub-nulljosh%2Ftripwire-black?logo=github)](https://github.com/nulljosh/tripwire)
 
-Every API you depend on ships breaking changes whenever it feels like it.
+Your CI goes red and you find out from a teammate, or from GitHub's mobile app, hours later. You dig through a log, find the one real line, fix it, push, wait again. Every repo, every time.
 
-Stripe renames a field. Some vendor kills an endpoint. You find out when prod 500s at 2am. Changelogs exist. Nobody reads them. The vendor has no idea which customers are even using the thing they just broke.
+That's the gap tripwire is moving to close: watch your GitHub Actions across every repo, find the real root cause in a failing run, and open a PR with the fix already written. Not built yet, see "Where it goes" below.
 
-That's the gap.
+What's live today: the same watch, aimed at a different kind of breakage. Every API you depend on ships changes whenever it feels like it. Stripe renames a field. Some vendor kills an endpoint. You find out when prod 500s at 2am. Changelogs exist. Nobody reads them.
 
 ## Screenshots
 
@@ -30,7 +30,7 @@ A status page tells everyone the same thing. This tells *you* what broke in *you
 
 ## Where it goes
 
-v0 opens the issue. v1 opens the PR with the fix already written. After that the vendor side: they'd pay to push fixes into their customers' codebases instead of praying people read the email.
+v0 (live) watches vendor APIs and opens an issue. v1 (next) watches your own GitHub Actions runs, root-causes a real failure, and opens the PR with the fix already written — CI that fixes itself instead of paging you. After that, the vendor side: they'd pay to push fixes into their customers' codebases instead of praying people read the email.
 
 Full setup, adding watches, secrets, and testing: [DOCS.md](DOCS.md).
 
