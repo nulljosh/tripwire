@@ -12,4 +12,6 @@ A Cloudflare Worker polls vendor OpenAPI specs on a 6-hour cron and stores them 
 | `web/worker.js` | Cloudflare Worker. Polls OpenAPI specs on cron, diffs, searches GitHub repo, opens issues. Stores specs and diffs in KV. |
 | `web/watches.json` | Config: array of vendors to watch. Each entry: name, spec URL, GitHub repo. One-line config to add a vendor. |
 | `tui/` | Terminal UI. SwiftPM + SwiftTUI. Thin client that fetches status from the live Worker API. |
+| `Package.swift` | SwiftPM manifest for the TUI target. |
+| `test.js` | Unit tests for diff logic and parsing. |
 | `wrangler.toml` | Cloudflare Worker deployment config. KV namespace and cron trigger. |
