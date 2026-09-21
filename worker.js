@@ -88,6 +88,15 @@ async function usages(env, repo, opKey, budget) {
 }
 
 async function openIssue(env, w, d, budget) {
+  const title = `[tripwire] ${w.name}: ${d.removed.length} removed, ${d.changed.length} changed`;
+  // A spec that flaps (Supabase's OpenAPI drops and re-adds tables) re-filed the same
+  // alert daily, 16 copies in one repo. Same title in the last 30 days, open or closed: skip.
+  // ponytail: title is the dedupe key, so a different drift with identical counts inside
+  // 30 days is missed. Hash the op list into the title if that ever bites.
+  const since = new Date(Date.now() - 30 * 864e5).toISOString();
+  const recent = await gh(env, `/repos/${w.repo}/issues?state=all&labels=tripwire&since=${since}&per_page=100`).catch(() => []);
+  const dupe = recent.find(i => i.title === title);
+  if (dupe) return { ...dupe, dupe: true };
   const lines = [`\`${w.spec}\` changed and it touches endpoints this repo may call.\n`];
   const removed = d.removed.slice(0, OPS_CAP), changed = d.changed.slice(0, OPS_CAP);
   const fileLines = files => files === null ? '_code search skipped (subrequest budget)_' : files.length ? files.map(f => `- ${f}`).join('\n') : '_no usages found by code search_';
@@ -107,7 +116,7 @@ async function openIssue(env, w, d, budget) {
   lines.push('---', 'Paste into Claude Code: `fix every call site listed above against the new spec at ' + w.spec + '`');
   return gh(env, `/repos/${w.repo}/issues`, {
     method: 'POST',
-    body: JSON.stringify({ title: `[tripwire] ${w.name}: ${d.removed.length} removed, ${d.changed.length} changed`, body: lines.join('\n'), labels: ['tripwire'] })
+    body: JSON.stringify({ title, body: lines.join('\n'), labels: ['tripwire'] })
   }).catch(async e => { // label may not exist
     if (!String(e).includes('422')) throw e;
     return gh(env, `/repos/${w.repo}/issues`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] ${w.name}`, body: lines.join('\n') }) });
@@ -204,6 +213,7 @@ export async function run(env) {
           if (!hit || !hit.length) continue;
           const opened = await openIssue(env, { ...w, repo }, d, budget);
           issue.push(opened.html_url);
+          if (opened.dupe) continue; // already filed, and so was its fix PR
           try {
             const pr = await openFixPR(env, { ...w, repo }, d, budget, opened.html_url);
             if (pr) issue.push(pr.html_url);
