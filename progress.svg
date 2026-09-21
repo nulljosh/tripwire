@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="468" height="200" viewBox="0 0 468 200"><style>
+  :root { --ink: #111111; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #ececec; } }
+  text { font-family: -apple-system, Helvetica, Arial, sans-serif; fill: var(--ink); }
+  line, polyline { stroke: var(--ink); fill: none; }
+  .g { stroke-dasharray: 1 4; }
+</style><text x="38" y="11" font-size="10">Lines of real code</text><line x1="38" y1="26" x2="458" y2="26" class="g"/><text x="34" y="29" font-size="9" text-anchor="end">724</text><line x1="38" y1="96" x2="458" y2="96" class="g"/><text x="34" y="99" font-size="9" text-anchor="end">362</text>
+<line x1="38" y1="26" x2="38" y2="166"/><line x1="38" y1="166" x2="458" y2="166"/>
+<polyline points="38,164 64,141 90,141 116,125 143,125 169,124 195,122 221,113 248,110 274,101 300,74 326,69 353,67 379,62 405,50 431,36 458,26" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="38" y="182" font-size="10">Sep 1</text><text x="458" y="182" font-size="10" text-anchor="end">Sep 12</text>
+<text x="38" y="196" font-size="10" font-weight="600">724 lines &#183; 36 commits since Sep 1 2026</text></svg>

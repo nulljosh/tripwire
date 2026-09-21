@@ -10,6 +10,8 @@ That's the gap tripwire is moving to close: watch your GitHub Actions across eve
 
 What's live today: the same watch, aimed at a different kind of breakage. Every API you depend on ships changes whenever it feels like it. Stripe renames a field. Some vendor kills an endpoint. You find out when prod 500s at 2am. Changelogs exist. Nobody reads them.
 
+<img src="progress.svg" width="460">
+
 ## Screenshots
 
 <p>
