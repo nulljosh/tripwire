@@ -13,8 +13,11 @@
 <link rel="icon" href="icon.svg">
 <style>
 @import url("https://heyitsmejosh.com/tokens.css");
+:root{--accent-soft:color-mix(in srgb,var(--accent) 9%,var(--bg));}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--link:var(--clay);}}
+:root[data-theme="dark"]{--link:var(--clay);}
 :root {
-  --accent: #d93f0b; --link: #a83009; --accent-soft: #fdeee8; --on-accent: #fff;
+  --accent: var(--clay); --link: var(--clay-deep); --on-accent: #fff;
   --font-body: -apple-system, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 :root { --diff-rm: #b42318; --diff-add: #1a7f37; }
