@@ -283,11 +283,19 @@ async function ciCheck(env) {
     try {
       const runs = await gh(env, `/repos/${repo}/actions/runs?branch=${branch}&status=completed&per_page=1`);
       const run = runs.workflow_runs?.[0];
-      if (!run || run.conclusion === 'success') continue;
+      if (!run) continue;
       const seenKey = `ci:${repo}`;
-      const seen = await env.KV.get(seenKey);
-      if (seen === String(run.id)) continue; // already reported this run
-      await env.KV.put(seenKey, String(run.id));
+      const seen = await env.KV.get(seenKey, 'json').catch(() => null);
+      if (run.conclusion === 'success') {
+        // green again: close the issue we filed, so the fleet never carries stale red flags
+        if (seen?.issue) {
+          await gh(env, `/repos/${repo}/issues/${seen.issue}`, { method: 'PATCH', body: JSON.stringify({ state: 'closed', state_reason: 'completed' }) }).catch(() => {});
+          await env.KV.delete(seenKey);
+        }
+        continue;
+      }
+      if (seen?.run === run.id) continue; // already reported this run
+      await env.KV.put(seenKey, JSON.stringify({ run: run.id }));
       const jobs = await gh(env, `/repos/${repo}/actions/runs/${run.id}/jobs`);
       const failedJobs = (jobs.jobs || []).filter(j => j.conclusion === 'failure');
       const logTail = failedJobs[0] ? (await ghLog(env, `/repos/${repo}/actions/jobs/${failedJobs[0].id}/logs`)).split('\n').slice(-80).join('\n') : '';
@@ -306,6 +314,7 @@ async function ciCheck(env) {
         if (!String(e).includes('422')) throw e;
         return gh(env, `/repos/${repo}/issues`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] CI failing: ${run.name || 'workflow'} #${run.run_number}`, body: lines.join('\n') }) });
       });
+      await env.KV.put(seenKey, JSON.stringify({ run: run.id, issue: opened.number }));
       let pr = null;
       try { pr = await openCIFixPR(env, repo, branch, run, logTail); } catch { /* best effort, the issue already links the run */ }
       flagged.push({ repo, run: run.html_url, issue: opened.html_url, pr: pr?.html_url });
