@@ -12,7 +12,7 @@ just be more surface area to maintain.
 ## What it does
 
 A Cloudflare Worker polls each watched vendor's OpenAPI spec on a cron (every
-6 hours) and keeps the last version in KV. When the spec changes it diffs the
+hour) and keeps the last version in KV. When the spec changes it diffs the
 two: removed endpoints, dropped parameters, new required fields. Then it
 searches the configured GitHub repo for calls to what changed and opens an
 issue:

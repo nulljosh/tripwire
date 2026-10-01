@@ -43,7 +43,7 @@ watches.json   { name, spec (openapi json url), repo (owner/name) }
 GET  /api      last run
 POST /api/run  x-key: $RUN_KEY, force a run
 secrets        GITHUB_TOKEN (repo + issues), RUN_KEY
-cron           every 6h
+cron           every hour
 ```
 
 ```

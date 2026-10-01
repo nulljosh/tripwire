@@ -4,7 +4,7 @@ Everything you need to add a watch, run it, read an issue, and fix it when it br
 
 ## How it works, in one breath
 
-Cron fires every 6 hours. For each entry in `watches.json` the worker fetches the OpenAPI
+Cron fires every hour. For each entry in `watches.json` the worker fetches the OpenAPI
 spec, parses it into a flat map of `METHOD /path` to its params and required body fields,
 and compares that to the copy it saved last time in KV. If any endpoint disappeared, lost a
 param, or grew a new required field, it code-searches each listed repo for that path and

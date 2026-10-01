@@ -8,7 +8,7 @@ No dashboard to check and no agent to install. It runs itself and only speaks up
 
 ## How it runs
 
-One small program runs on Cloudflare's network every six hours. It downloads each service's current description, stores it, and compares it to the copy from last time. If anything was removed, renamed, or newly required, it searches your GitHub repository for code that touches it and opens an issue with the details. The web page and the terminal client just read the current status from that same program. Everything it remembers is kept in Cloudflare's key-value storage; there is no database and no server to run.
+One small program runs on Cloudflare's network every hour. It downloads each service's current description, stores it, and compares it to the copy from last time. If anything was removed, renamed, or newly required, it searches your GitHub repository for code that touches it and opens an issue with the details. The web page and the terminal client just read the current status from that same program. Everything it remembers is kept in Cloudflare's key-value storage; there is no database and no server to run.
 
 | File | What it owns |
 |---|---|
