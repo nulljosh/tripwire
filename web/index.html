@@ -65,20 +65,18 @@ footer { padding: 2.5rem 0; color: var(--text2); font-size: .9rem; text-align: c
   html.js .reveal.in-view { opacity: 1; transform: translateY(0); }
 }
 </style>
-<link rel="stylesheet" href="devices.css">
-<script>
-// ponytail: UA sniff, good enough for a mockup. iphone is the default. ?embed = app only, for the landing demo frame.
-(function(u,d){d=/Android/.test(u)?'android':/iPhone|iPad/.test(u)?'iphone':/Windows/.test(u)?'windows':/Mac/.test(u)?'mac':'iphone';document.documentElement.dataset.device=d;if(/[?&]embed\b/.test(location.search))document.documentElement.classList.add('embed')})(navigator.userAgent);
-</script>
 <style>
-/* Live demo: the real app in a frame matching the visitor's device (nimble treatment) */
-.demo{margin:2rem auto 0;text-align:center;position:relative;z-index:2}
-.demo .device-screen{aspect-ratio:9/19.5}
-.demo .device-mac .device-screen,.demo .device-windows .device-screen{aspect-ratio:16/10}
-.demo .device-screen iframe{position:absolute;top:0;left:0;border:0;display:block;transform-origin:0 0;width:390px;height:845px;background:#fff}
-.demo .device-mac .device-screen iframe,.demo .device-windows .device-screen iframe{width:1024px;height:640px}
-.demo-caption{font-size:.9rem;opacity:.65;margin:1rem 0 0}
-.embed .demo,.embed footer,.embed nav,.embed .hero{display:none!important}
+/* ponytail: tripwire's output is a GitHub issue, so the demo is that issue, not a fake app */
+.issue{margin:2rem auto 1.5rem;max-width:560px;text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;position:relative;z-index:2;box-shadow:0 12px 40px rgba(0,0,0,.12)}
+.issue-head{padding:1rem 1.2rem;border-bottom:1px solid var(--border)}
+.issue-title{font-weight:600;font-size:1.05rem;margin:0}
+.issue-meta{font-size:.85rem;color:var(--text2);margin-top:.4rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.issue-open{background:#1f883d;color:#fff;border-radius:999px;padding:.15em .7em;font-weight:600;font-size:.8rem}
+.issue-body{padding:1rem 1.2rem;font-size:.92rem}
+.issue-body p{margin:0 0 .7rem}
+.issue-body ul{margin:0 0 .7rem;padding-left:1.2rem}
+.issue-body pre{margin:0;font-size:.82rem}
+.issue-body .rm{color:#cf222e}.issue-body .add{color:#1a7f37}
 </style>
 </head>
 <body>
@@ -88,16 +86,20 @@ footer { padding: 2.5rem 0; color: var(--text2); font-size: .9rem; text-align: c
   <img src="icon.svg" alt="">
   <h1>Know when an API breaks your code.</h1>
   <p class="lede">Every API you depend on ships breaking changes whenever it feels like it. Tripwire tells you what broke, in your code, before prod does.</p>
-<div class="demo">
-  <div class="device device-iphone" id="demoFrame" data-title="Tripwire"><div class="device-screen"><iframe id="demoApp" title="Tripwire, live" loading="lazy" data-src="./?embed"></iframe></div></div>
-  <p class="demo-caption">This is the <span id="demoDev">iPhone</span> app, live. Try it.</p>
+<div class="issue" aria-label="Example issue tripwire opens">
+  <div class="issue-head">
+    <p class="issue-title">Stripe removed <code>POST /v1/charges</code>, you call it in 3 files</p>
+    <div class="issue-meta"><span class="issue-open">Open</span> tripwire[bot] opened this issue &middot; label: <code>breaking-api</code></div>
+  </div>
+  <div class="issue-body">
+    <p>Stripe's OpenAPI spec changed since the last run. This endpoint is gone:</p>
+<pre><span class="rm">- POST /v1/charges</span>
+<span class="rm">- charges.customer_id</span>
+<span class="add">+ charges.customer</span></pre>
+    <p style="margin-top:.7rem">Your calls:</p>
+    <ul><li><code>src/billing/checkout.ts:42</code></li><li><code>src/billing/refund.ts:18</code></li><li><code>api/webhooks/stripe.ts:77</code></li></ul>
+  </div>
 </div>
-<script>
-(function(){var names={iphone:'iPhone',android:'Android',mac:'Mac',windows:'Windows'},dev=document.documentElement.dataset.device,f=document.getElementById('demoFrame'),i=document.getElementById('demoApp');
-if(!names[dev])dev='iphone';f.className='device device-'+dev;document.getElementById('demoDev').textContent=names[dev];
-if(!document.documentElement.classList.contains('embed'))i.src=i.dataset.src;
-function fit(){i.style.transform='scale('+(i.parentNode.clientWidth/i.offsetWidth)+')';}fit();addEventListener('resize',fit);})();
-</script>
 
   <a class="btn" href="https://github.com/nulljosh/tripwire">Get it on GitHub</a>
 </div></div>
