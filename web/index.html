@@ -59,7 +59,22 @@ p { margin-bottom: 1rem; }
 blockquote { border-left: 3px solid var(--accent); padding: .6rem 1rem; background: var(--bg2); border-radius: 0 8px 8px 0; margin: 1rem 0; }
 code { background: var(--bg2); padding: .1em .4em; border-radius: 5px; font-size: .92em; }
 pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; overflow-x: auto; font-size: .9rem; line-height: 1.5; }
-footer { padding: 2.5rem 0; color: var(--text2); font-size: .9rem; text-align: center; }
+  /* Footer directory: tagline rule, four columns, two-by-two on phones. */
+  footer { padding: 0 0 3rem; text-align: center; font-size: .8125rem; color: var(--text2); }
+  footer .foot-rule { display: flex; align-items: center; gap: 16px; max-width: 880px; margin: 0 auto; padding: 8px 1.5rem 24px; color: var(--text); font-size: .6875rem; letter-spacing: .18em; text-transform: uppercase; font-weight: 500; }
+  footer .foot-rule::before { content: ""; order: 1; flex: 1; height: 1px; background: var(--border); }
+  footer .foot-rule > :first-child { order: 0; }
+  footer .foot-rule > :last-child { order: 2; }
+  .foot-dir { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px 24px; max-width: 880px; margin: 0 auto; padding: 0 1.5rem 28px; text-align: left; }
+  .foot-col h3 { margin: 0 0 8px; font-size: .75rem; font-weight: 600; color: var(--text); letter-spacing: .02em; }
+  .foot-col ul { list-style: none; margin: 0; padding: 0; }
+  .foot-col a { position: relative; display: inline-block; padding: 5px 0; color: var(--text2); text-decoration: none; font-size: .8125rem; line-height: 1.35; }
+  .foot-col a::after { content: ""; position: absolute; top: 50%; left: 0; transform: translateY(-50%); width: 100%; height: 44px; min-width: 44px; }
+  .foot-col a:hover { color: var(--text); text-decoration: underline; }
+  .foot-bar { max-width: 880px; margin: 0 auto; padding: 18px 1.5rem 0; border-top: 1px solid var(--border); }
+  .foot-meta { margin: 0; color: var(--text2); font-size: .78rem; line-height: 1.9; }
+  .foot-meta a { color: var(--text2); }
+  @media (max-width: 700px) { .foot-dir { grid-template-columns: repeat(2, 1fr); } footer .foot-rule { font-size: .5625rem; letter-spacing: .14em; gap: 10px; } }
 @media (prefers-reduced-motion: no-preference) {
   html.js .reveal { opacity: 0; transform: translateY(20px); transition: opacity .6s ease-out, transform .6s ease-out; }
   html.js .reveal.in-view { opacity: 1; transform: translateY(0); }
@@ -104,24 +119,24 @@ footer { padding: 2.5rem 0; color: var(--text2); font-size: .9rem; text-align: c
   <a class="btn" href="https://github.com/nulljosh/tripwire">Get it on GitHub</a>
 </div></div>
 
-<section><div class="container">
+<section id="gap"><div class="container">
   <h2>The gap</h2>
   <p>Stripe renames a field. Some vendor kills an endpoint. You find out when prod 500s at 2am. Changelogs exist. Nobody reads them. The vendor has no idea which customers are even using the thing they just broke.</p>
 </div></section>
 
-<section><div class="container">
+<section id="what"><div class="container">
   <h2>What it does</h2>
   <p>A worker polls the vendor's OpenAPI spec on a cron and keeps the last version. When it changes, it diffs the two: removed endpoints, dropped params, new required fields. Then it goes into your repo, finds the calls that just got nuked, and opens an issue that says</p>
   <blockquote><code>/v1/charges</code> is gone. You call it in these three files. Here's the diff.</blockquote>
   <p>That's it. That's the whole product. One file.</p>
 </div></section>
 
-<section><div class="container">
+<section id="why"><div class="container">
   <h2>Why this and not a status page</h2>
   <p>A status page tells everyone the same thing. This tells you what broke in your code. The difference between a weather report and someone knocking on your door with an umbrella.</p>
 </div></section>
 
-<section><div class="container">
+<section id="built"><div class="container">
   <h2>How it's built</h2>
   <img src="architecture.svg" alt="Tripwire architecture" width="640">
   <pre>watches.json   { name, spec, repo }
@@ -130,7 +145,49 @@ POST /api/run  x-key: $RUN_KEY
 cron           every hour</pre>
 </div></section>
 
-<footer><div class="container">Built by <a href="https://heyitsmejosh.com">Josh</a> &middot; <a href="https://heyitsmejosh.com/docs.html#tripwire">Docs</a>. Runs on Cloudflare Workers.</div></footer>
+<footer>
+  <div class="foot-rule" aria-hidden="true"><span>Tripwire</span><span>Know when an API breaks your code.</span></div>
+  <nav class="foot-dir" aria-label="Footer">
+    <div class="foot-col">
+      <h3>Tripwire</h3>
+      <ul>
+        <li><a href="#gap">The gap</a></li>
+        <li><a href="#what">What it does</a></li>
+        <li><a href="#why">Why not a status page</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h3>Explore</h3>
+      <ul>
+        <li><a href="#built">How it&rsquo;s built</a></li>
+        <li><a href="https://github.com/nulljosh/tripwire/blob/main/watches.json" target="_blank" rel="noopener">Watched APIs</a></li>
+        <li><a href="https://github.com/nulljosh/tripwire/blob/main/roadmap.md" target="_blank" rel="noopener">Roadmap</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h3>Developers</h3>
+      <ul>
+        <li><a href="https://github.com/nulljosh/tripwire" target="_blank" rel="noopener">Source</a></li>
+        <li><a href="https://github.com/nulljosh/tripwire/blob/main/docs/ARCHITECTURE.md" target="_blank" rel="noopener">Architecture</a></li>
+        <li><a href="https://github.com/nulljosh/tripwire/blob/main/WHITEPAPER.md" target="_blank" rel="noopener">Whitepaper</a></li>
+        <li><a href="https://github.com/nulljosh/tripwire/issues" target="_blank" rel="noopener">Report a bug</a></li>
+        <li><a href="https://heyitsmejosh.com/docs.html#tripwire">Docs</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h3>Project</h3>
+      <ul>
+        <li><a href="https://github.com/nulljosh/tripwire/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy</a></li>
+        <li><a href="https://github.com/nulljosh/tripwire/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a></li>
+        <li><a href="https://heyitsmejosh.com">Portfolio</a></li>
+        <li><a href="#">Back to top</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="foot-bar">
+    <p class="foot-meta">Tripwire &middot; MIT License &middot; &copy; 2026 Joshua Trommel &middot; Made with <span class="heart">&hearts;</span> in Vancouver, BC</p>
+  </div>
+</footer>
 <script>
 // hero wallpaper: columns of tiny diff cards, the kind of thing tripwire actually files
 (function wall() {
