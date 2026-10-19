@@ -3,26 +3,10 @@
 // repo and flags red builds.
 import watches from './watches.json' with { type: 'json' };
 
-const GH = 'https://api.github.com';
-const METHODS = ['get', 'post', 'put', 'patch', 'delete'];
-const GH_USER = 'nulljosh';
-const REPO_LIST_TTL = 6 * 60 * 60; // repo list changes rarely, 6h cache keeps this off the subrequest budget
+import { gh, listRepos, contents, fromB64, toB64, parseModelJSON, PATCH_FILES_CAP } from './github.js';
+import { ciCheck } from './ci.js';
 
-// ponytail: no more hand-maintained repo arrays in watches.json, list every
-// non-fork, non-archived repo on the account and let usages() decide per-watch
-// relevance via code search instead.
-async function listRepos(env) {
-  const cached = await env.KV.get('repos:list', 'json');
-  if (cached) return cached;
-  const repos = [];
-  for (let page = 1; page <= 5; page++) {
-    const batch = await gh(env, `/users/${GH_USER}/repos?per_page=100&page=${page}&type=owner`);
-    repos.push(...batch.filter(r => !r.fork && !r.archived).map(r => ({ full_name: r.full_name, default_branch: r.default_branch })));
-    if (batch.length < 100) break;
-  }
-  await env.KV.put('repos:list', JSON.stringify(repos), { expirationTtl: REPO_LIST_TTL });
-  return repos;
-}
+const METHODS = ['get', 'post', 'put', 'patch', 'delete'];
 
 // Flatten an OpenAPI doc into { "GET /path": { params:[...], required:[...] } }
 export function ops(spec) {
@@ -59,21 +43,6 @@ const breaking = d => d.removed.length + d.changed.length;
 // code-search call per repo. Budget is shared across the whole watch, not per-repo.
 const OPS_CAP = 8;
 
-async function gh(env, path, init = {}) {
-  const res = await fetch(GH + path, {
-    ...init,
-    headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'tripwire', Accept: 'application/vnd.github+json', ...(init.headers || {}) }
-  });
-  if (!res.ok) throw new Error(`${path} -> ${res.status} ${await res.text()}`);
-  return res.json();
-}
-
-// job logs come back as plain text (redirected to blob storage), not JSON
-async function ghLog(env, path) {
-  const res = await fetch(GH + path, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'tripwire' } });
-  if (!res.ok) return '';
-  return res.text();
-}
 
 // Where does this repo call a path? GitHub code search, path without leading slash and {params}.
 async function usages(env, repo, opKey, budget) {
@@ -127,20 +96,12 @@ async function openIssue(env, w, d, budget) {
 // ponytail: one file-set patch per repo via Workers AI, capped at 3 files (git blob/commit/PR
 // calls are expensive against the shared subrequest budget); falls back to the issue silently
 // if there's nothing to patch or the model output doesn't parse.
-const PATCH_FILES_CAP = 3;
-
-async function contents(env, repo, path, ref) {
-  try {
-    return await gh(env, `/repos/${repo}/contents/${path}?ref=${ref}`);
-  } catch { return null; }
-}
-
 async function generatePatch(env, w, d, files) {
   const prompt = `The API at ${w.spec} changed. Removed/changed operations:\n${JSON.stringify(d.removed.concat(d.changed.map(c => c.op)))}\n\n` +
     `Update these files to work with the new API shape. Return ONLY a JSON object mapping file path to the FULL new file content, no markdown fences, no commentary.\n\n` +
     files.map(f => `--- ${f.path} ---\n${f.text}`).join('\n\n');
-  const res = await env.AI.run('@cf/qwen/qwen2.5-coder-32b-instruct', { messages: [{ role: 'user', content: prompt }] });
-  try { return JSON.parse((res.response || '').trim().replace(/^```json?\n?|```$/g, '')); } catch { return null; }
+  const res = await env.AI.run('@cf/qwen/qwen2.5-coder-32b-instruct', { messages: [{ role: 'user', content: prompt }], max_tokens: 8192 });
+  return parseModelJSON(res.response);
 }
 
 async function openFixPR(env, w, d, budget, issueUrl) {
@@ -161,7 +122,7 @@ async function openFixPR(env, w, d, budget, issueUrl) {
   for (const path of paths) {
     const c = await contents(env, w.repo, path, base);
     if (c && c.encoding !== 'base64') continue;
-    if (c) files.push({ path, text: atob(c.content.replace(/\n/g, '')), sha: c.sha });
+    if (c) files.push({ path, text: fromB64(c.content), sha: c.sha });
   }
   if (!files.length) return null;
 
@@ -174,11 +135,11 @@ async function openFixPR(env, w, d, budget, issueUrl) {
     if (!patch[f.path]) continue;
     await gh(env, `/repos/${w.repo}/contents/${f.path}`, {
       method: 'PUT',
-      body: JSON.stringify({ message: `tripwire: fix ${f.path} for ${w.name} API change`, content: btoa(patch[f.path]), sha: f.sha, branch })
+      body: JSON.stringify({ message: `tripwire: fix ${f.path} for ${w.name} API change`, content: toB64(patch[f.path]), sha: f.sha, branch })
     });
   }
   const body = `Auto-generated fix for the API drift in ${issueUrl || w.name}.\n\nReview before merging, this was written by a model against the new spec at ${w.spec}.`;
-  return gh(env, `/repos/${w.repo}/pulls`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] fix: ${w.name} API drift`, head: branch, base, body }) });
+  return gh(env, `/repos/${w.repo}/pulls`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] fix: ${w.name} API drift`, head: branch, base, body, draft: true }) });
 }
 
 export async function run(env) {
@@ -228,114 +189,6 @@ export async function run(env) {
   const ci = await ciCheck(env);
   await env.KV.put('last', JSON.stringify({ at: new Date().toISOString(), report, ci }));
   return report;
-}
-
-// Failed job logs mention real repo paths (stack traces, "Cannot find module", linter output).
-// Only try to patch a path if it actually exists in the repo — if it doesn't (e.g. a file that
-// was never committed), there's nothing to safely rewrite and we leave it to the issue.
-const CI_PATH_RE = /[\w][\w\-./]*\.(?:js|mjs|cjs|ts|tsx|jsx|py|swift|go|rb|java|kt)\b/g;
-
-async function openCIFixPR(env, repo, branch, run, logTail, note) {
-  if (!env.AI || !logTail) return void (note.why = 'no AI binding or empty job log');
-  const candidates = [...new Set(logTail.match(CI_PATH_RE) || [])].filter(p => p.includes('/')).slice(0, 8);
-  const files = [];
-  for (const path of candidates) {
-    if (files.length >= PATCH_FILES_CAP) break;
-    const c = await contents(env, repo, path, branch);
-    if (c && c.encoding === 'base64') files.push({ path, text: atob(c.content.replace(/\n/g, '')), sha: c.sha });
-  }
-  if (!files.length) return void (note.why = 'no repo file paths in the log tail');
-
-  const prompt = `This CI run failed: ${run.html_url}\nLast lines of the failing job's log:\n${logTail}\n\n` +
-    `Fix these files so the failure above goes away. Return ONLY a JSON object mapping file path to the FULL new file content, no markdown fences, no commentary.\n\n` +
-    files.map(f => `--- ${f.path} ---\n${f.text}`).join('\n\n');
-  const res = await env.AI.run('@cf/qwen/qwen2.5-coder-32b-instruct', { messages: [{ role: 'user', content: prompt }] });
-  let patch;
-  try { patch = JSON.parse((res.response || '').trim().replace(/^```json?\n?|```$/g, '')); } catch { return void (note.why = 'model output was not JSON'); }
-  if (!patch) return void (note.why = 'model output was empty');
-
-  const ref = await gh(env, `/repos/${repo}/git/ref/heads/${branch}`);
-  const prBranch = `tripwire/ci-fix-${run.id}`;
-  await gh(env, `/repos/${repo}/git/refs`, { method: 'POST', body: JSON.stringify({ ref: `refs/heads/${prBranch}`, sha: ref.object.sha }) });
-  let wrote = 0;
-  for (const f of files) {
-    if (!patch[f.path]) continue;
-    await gh(env, `/repos/${repo}/contents/${f.path}`, {
-      method: 'PUT',
-      body: JSON.stringify({ message: `tripwire: fix CI failure in ${f.path}`, content: btoa(patch[f.path]), sha: f.sha, branch: prBranch })
-    });
-    wrote++;
-  }
-  if (!wrote) return void (note.why = 'model returned none of the files it was given');
-  const body = `Auto-generated fix for the red CI run: ${run.html_url}\n\nReview before merging, this was written by a model against the failing job's log tail.`;
-  return gh(env, `/repos/${repo}/pulls`, { method: 'POST', body: JSON.stringify({ title: `[tripwire] fix: CI failure in #${run.run_number}`, head: prBranch, base: branch, body }) });
-}
-
-// Latest completed run per workflow decides. Red with no open issue: file one. Green with an
-// open issue: close it. One issue per failing workflow, not per failing run, so a workflow that
-// stays red (a 30 minute cron) can't file a new copy every tick.
-export function ciPlan(runs, state) {
-  const latest = new Map();
-  for (const r of runs) if (!latest.has(r.workflow_id)) latest.set(r.workflow_id, r);
-  const open = [], close = [];
-  for (const [wf, r] of latest) {
-    const had = state[wf]?.issue;
-    if (r.conclusion === 'success') { if (had) close.push({ wf, issue: had }); }
-    else if (['failure', 'timed_out'].includes(r.conclusion) && !had) open.push(r);
-  }
-  return { open, close };
-}
-
-// Flag red CI on every repo's default branch: one issue per newly-red workflow (state in KV,
-// one key per repo), naming the failed jobs/steps and linking the run, then tries a patch PR
-// from the failing job's log tail. When the PR is skipped, `why` says so in the report.
-// ponytail: only patches paths that already exist in the repo (a file that was simply never
-// committed has nothing to rewrite, same as the API-drift fixer's "no usages found" ceiling)
-// and only touches PATCH_FILES_CAP files.
-async function ciCheck(env) {
-  const repos = await listRepos(env);
-  const flagged = [];
-  for (const { full_name: repo, default_branch: branch } of repos) {
-    try {
-      const { workflow_runs: runs = [] } = await gh(env, `/repos/${repo}/actions/runs?branch=${branch}&status=completed&per_page=30`);
-      const key = `ci2:${repo}`;
-      const state = (await env.KV.get(key, 'json').catch(() => null)) || {};
-      const { open, close } = ciPlan(runs, state);
-      for (const { wf, issue } of close) {
-        await gh(env, `/repos/${repo}/issues/${issue}`, { method: 'PATCH', body: JSON.stringify({ state: 'closed', state_reason: 'completed' }) }).catch(() => {});
-        delete state[wf];
-        await env.KV.put(key, JSON.stringify(state));
-      }
-      for (const run of open) {
-        const jobs = await gh(env, `/repos/${repo}/actions/runs/${run.id}/jobs`);
-        const failedJobs = (jobs.jobs || []).filter(j => j.conclusion === 'failure');
-        const logTail = failedJobs[0] ? (await ghLog(env, `/repos/${repo}/actions/jobs/${failedJobs[0].id}/logs`)).split('\n').slice(-80).join('\n') : '';
-        const title = `[tripwire] CI failing: ${run.name || 'workflow'} #${run.run_number}`;
-        const lines = [
-          `CI is red on \`${branch}\`: [${run.name || 'workflow'} #${run.run_number}](${run.html_url}), conclusion \`${run.conclusion}\`.`,
-          '',
-          ...failedJobs.map(j => `- **${j.name}**: ${(j.steps || []).filter(s => s.conclusion === 'failure').map(s => s.name).join(', ') || 'failed'}`),
-          '',
-          '---',
-          'Paste into Claude Code: `the CI run above is failing, fix it`',
-        ];
-        const opened = await gh(env, `/repos/${repo}/issues`, {
-          method: 'POST',
-          body: JSON.stringify({ title, body: lines.join('\n'), labels: ['tripwire'] })
-        }).catch(async e => { // label may not exist
-          if (!String(e).includes('422')) throw e;
-          return gh(env, `/repos/${repo}/issues`, { method: 'POST', body: JSON.stringify({ title, body: lines.join('\n') }) });
-        });
-        state[run.workflow_id] = { run: run.id, issue: opened.number };
-        await env.KV.put(key, JSON.stringify(state));
-        const note = {};
-        let pr = null;
-        try { pr = await openCIFixPR(env, repo, branch, run, logTail, note); } catch (e) { note.why = `error: ${String(e.message || e).slice(0, 200)}`; }
-        flagged.push({ repo, run: run.html_url, issue: opened.html_url, pr: pr?.html_url, why: pr ? undefined : note.why });
-      }
-    } catch (e) { console.log('ci', repo, String(e.message || e).slice(0, 200)); } // no Actions on the repo, or API hiccup
-  }
-  return flagged;
 }
 
 export default {

@@ -16,7 +16,9 @@ The first run for any watch only stores a baseline. Nothing is diffed until the 
 
 | File | What |
 |------|------|
-| `worker.js` | the whole thing: fetch, diff, search, issue, cron, tiny API |
+| `worker.js` | API drift: fetch, diff, search, issue, cron, tiny API |
+| `ci.js` | CI watch: one issue per red workflow, draft fix PR from the log tail |
+| `github.js` | GitHub calls, repo list, base64, model-output parsing |
 | `watches.json` | what to watch and which repos care |
 | `web/` | landing page, served as static assets |
 | `test.js` | the one check that fails if the diff logic breaks |
