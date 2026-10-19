@@ -26,18 +26,7 @@ export async function gh(env, path, init = {}) {
     headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'tripwire', Accept: 'application/vnd.github+json', ...(init.headers || {}) }
   });
   if (!res.ok) throw new Error(`${path} -> ${res.status} ${await res.text()}`);
-  return res.json();
-}
-
-// job logs come back as plain text (redirected to blob storage), not JSON
-export async function ghLog(env, path) {
-  // The API answers 302 to a signed blob URL. Following it with our Authorization header still
-  // attached makes the blob store refuse, so follow it by hand without the header.
-  const res = await fetch(GH + path, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, 'User-Agent': 'tripwire' }, redirect: 'manual' });
-  const loc = res.headers.get('location');
-  const log = loc ? await fetch(loc) : res;
-  if (!log.ok) return '';
-  return log.text();
+  return res.status === 204 ? null : res.json(); // 204: dispatches and other no-body writes
 }
 
 // ponytail: patches cap at 3 files (git blob/commit/PR calls are expensive against the shared
