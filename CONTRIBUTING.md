@@ -5,7 +5,7 @@ Tripwire is an API drift watcher — a Cloudflare Worker that polls endpoints on
 ## Setup
 
 ```
-git clone https://github.com/nulljosh/tripwire.git
+git clone https://github.com/nulljosh/labs.git
 cd tripwire
 npm install
 ```

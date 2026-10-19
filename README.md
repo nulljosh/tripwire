@@ -2,7 +2,7 @@
 
 # tripwire
 
-![version](https://img.shields.io/badge/version-v1.0.0-blue) ![license](https://img.shields.io/badge/license-MIT-green) [![GitHub](https://img.shields.io/badge/GitHub-nulljosh%2Ftripwire-black?logo=github)](https://github.com/nulljosh/tripwire)
+![version](https://img.shields.io/badge/version-v1.0.0-blue) ![license](https://img.shields.io/badge/license-MIT-green) [![GitHub](https://img.shields.io/badge/GitHub-nulljosh%2Ftripwire-black?logo=github)](https://github.com/nulljosh/labs/tree/main/tripwire)
 
 Your CI goes red and you find out from a teammate, or from GitHub's mobile app, hours later. You dig through a log, find the one real line, fix it, push, wait again. Every repo, every time.
 
