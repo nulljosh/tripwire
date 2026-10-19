@@ -11,3 +11,10 @@ assert.deepEqual(d.changed, [
 ]);
 assert.deepEqual(diff(a, a), { removed: [], added: [], changed: [] });
 console.log('ok');
+const { ciPlan } = await import('./worker.js');
+const run = (workflow_id, id, conclusion) => ({ workflow_id, id, conclusion });
+// newest first: wf 1 red twice (one issue only), wf 2 red with an open issue (skip), wf 3 green with an open issue (close), wf 4 cancelled (ignore)
+const plan = ciPlan([run(1, 9, 'failure'), run(1, 8, 'failure'), run(2, 7, 'failure'), run(3, 6, 'success'), run(4, 5, 'cancelled')], { 2: { issue: 20 }, 3: { issue: 30 } });
+assert.deepEqual(plan.open.map(r => r.id), [9]);
+assert.deepEqual(plan.close, [{ wf: 3, issue: 30 }]);
+console.log('ci ok');
