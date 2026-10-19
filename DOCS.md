@@ -17,7 +17,8 @@ The first run for any watch only stores a baseline. Nothing is diffed until the 
 | File | What |
 |------|------|
 | `worker.js` | API drift: fetch, diff, search, issue, cron, tiny API |
-| `ci.js` | CI watch: one issue per red workflow, draft fix PR from the log tail |
+| `ci.js` | CI watch: one issue per red workflow, then dispatches the fixer workflow |
+| `../.github/workflows/tripwire-fix.yml` | the fixer: Claude Code reproduces, fixes, re-runs, opens the PR |
 | `github.js` | GitHub calls, repo list, base64, model-output parsing |
 | `watches.json` | what to watch and which repos care |
 | `web/` | landing page, served as static assets |
