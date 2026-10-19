@@ -1,0 +1,19 @@
+[
+  {
+    "name": "stripe",
+    "spec": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json"
+  },
+  {
+    "name": "github",
+    "spec": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json"
+  },
+  {
+    "name": "resend",
+    "spec": "https://raw.githubusercontent.com/resend/resend-openapi/main/resend.json"
+  },
+  {
+    "name": "supabase-spark-db",
+    "spec": "https://tjsxsqlxjmanwvmywwvw.supabase.co/rest/v1/",
+    "headers": { "apikey": "$SUPABASE_KEY" }
+  }
+]

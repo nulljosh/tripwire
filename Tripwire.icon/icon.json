@@ -1,0 +1,46 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "extended-srgb:0.961,0.251,0.373,1.0",
+          "extended-srgb:0.702,0.071,0.184,1.0"
+        ]
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "extended-srgb:0.197,0.020,0.052,1.0",
+          "extended-srgb:0.084,0.008,0.022,1.0"
+        ]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "glass": false,
+          "image-name": "glyph.png",
+          "name": "Tripwire"
+        }
+      ],
+      "lighting": "individual",
+      "name": "Tripwire",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.3
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}
