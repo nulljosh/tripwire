@@ -21,7 +21,6 @@ jobs:
       REPO: ${{ inputs.repo }}
       RUN_ID: ${{ inputs.run_id }}
       ISSUE: ${{ inputs.issue }}
-      HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - name: Check inputs
         run: '[[ "$REPO" =~ ^nulljosh/[A-Za-z0-9._-]+$ && "$RUN_ID" =~ ^[0-9]+$ && "$ISSUE" =~ ^[0-9]+$ ]] || { echo "bad inputs"; exit 1; }'
@@ -91,7 +90,7 @@ jobs:
           EOF
 
       # Gemma 3 27B writes the fix (free, Google AI Studio key in GEMINI_API_KEY), driven by aider.
-      # Claude reviews the PR afterwards whenever the CLAUDE_CODE_OAUTH_TOKEN secret is set.
+      # Review happens by hand: Joshua's Claude sessions read the PR before it merges.
       - uses: actions/setup-python@v5
         if: steps.triage.outputs.skip == ''
         with:
@@ -135,22 +134,3 @@ jobs:
           { cat "$RUNNER_TEMP/summary.md"; echo; echo "Fixes #$ISSUE"; } > "$RUNNER_TEMP/body.md"
           url=$(gh pr create -R "$REPO" --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md")
           echo "$url"; echo "url=$url" >> "$GITHUB_OUTPUT"
-          git diff "$(cat "$RUNNER_TEMP/base")" HEAD > "$RUNNER_TEMP/fix.diff"
-
-      - uses: actions/setup-node@v4
-        if: steps.pr.outputs.url != '' && env.HAS_CLAUDE == 'true'
-        with:
-          node-version: 22
-
-      # Read only: Claude sees the log and Gemma's diff, never pushes, and posts one review comment.
-      - name: Claude reviews Gemma's fix
-        if: steps.pr.outputs.url != '' && env.HAS_CLAUDE == 'true'
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.TRIPWIRE_GH_TOKEN }}
-          PR: ${{ steps.pr.outputs.url }}
-        run: |
-          npx -y @anthropic-ai/claude-code@2.1.288 -p "Review this CI fix written by a smaller model. The failing log is at $RUNNER_TEMP/failed.log and the diff at $RUNNER_TEMP/fix.diff; read the touched files in this checkout as needed. Answer in under 150 words of plain English: does it fix the root cause, is anything wrong or risky, and end with one line, either APPROVE or CHANGES NEEDED with the reason. Do not edit any file." \
-            --model claude-sonnet-5-5 --max-turns 15 --allowedTools Read Grep Glob > "$RUNNER_TEMP/review.md" || exit 0
-          { echo "Claude's review of this fix:"; echo; cat "$RUNNER_TEMP/review.md"; } > "$RUNNER_TEMP/review-body.md"
-          gh pr comment "$PR" --body-file "$RUNNER_TEMP/review-body.md"
