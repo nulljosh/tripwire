@@ -21,6 +21,7 @@ jobs:
       REPO: ${{ inputs.repo }}
       RUN_ID: ${{ inputs.run_id }}
       ISSUE: ${{ inputs.issue }}
+      HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - name: Check inputs
         run: '[[ "$REPO" =~ ^nulljosh/[A-Za-z0-9._-]+$ && "$RUN_ID" =~ ^[0-9]+$ && "$ISSUE" =~ ^[0-9]+$ ]] || { echo "bad inputs"; exit 1; }'
@@ -69,16 +70,8 @@ jobs:
         run: |
           gh issue comment "$ISSUE" -R "$REPO" --body "tripwire skipped the fix: $WHY. A person needs to look at this one."
 
-      - uses: actions/setup-node@v4
+      - name: Write the prompt
         if: steps.triage.outputs.skip == ''
-        with:
-          node-version: 22
-
-      - name: Claude Code fixes it
-        if: steps.triage.outputs.skip == ''
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           cat > "$RUNNER_TEMP/prompt.md" <<EOF
           CI is red on the default branch of $REPO. You are in a fresh checkout of it.
@@ -96,10 +89,45 @@ jobs:
           End with a short plain-English summary for the PR: what broke and why, what you
           changed, and how you verified it (or exactly why you could not).
           EOF
+
+      # The brain: Claude Code when the CLAUDE_CODE_OAUTH_TOKEN secret is set, otherwise Gemma 3 27B
+      # (free, Google AI Studio key in GEMINI_API_KEY) driven by aider.
+      - uses: actions/setup-node@v4
+        if: steps.triage.outputs.skip == '' && env.HAS_CLAUDE == 'true'
+        with:
+          node-version: 22
+
+      - name: Claude Code fixes it
+        if: steps.triage.outputs.skip == '' && env.HAS_CLAUDE == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           npx -y @anthropic-ai/claude-code@2.1.288 -p "$(cat "$RUNNER_TEMP/prompt.md")" \
             --model claude-sonnet-5-5 --max-turns 40 --dangerously-skip-permissions \
             > "$RUNNER_TEMP/summary.md"
           cat "$RUNNER_TEMP/summary.md"
+
+      - uses: actions/setup-python@v5
+        if: steps.triage.outputs.skip == '' && env.HAS_CLAUDE != 'true'
+        with:
+          python-version: '3.12'
+
+      - name: Gemma fixes it
+        if: steps.triage.outputs.skip == '' && env.HAS_CLAUDE != 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          pip install -q aider-chat
+          # ponytail: hand aider the files the log names; it can't explore the repo like an agent can
+          files=$(grep -oE '[A-Za-z0-9_./-]+\.(js|mjs|cjs|ts|tsx|jsx|py|go|rs|rb|java|kt|swift|json|toml|yml|yaml|sh|css|html)' "$RUNNER_TEMP/failed.log" \
+            | sed 's#^\./##' | sort -u | while read -r f; do [ -f "$f" ] && echo "$f"; done | head -8)
+          aider --model gemini/gemma-3-27b-it --yes-always --no-auto-commits --no-dirty-commits \
+            --no-check-update --no-show-model-warnings --no-pretty --no-stream --no-gitignore \
+            --read "$RUNNER_TEMP/failed.log" --message-file "$RUNNER_TEMP/prompt.md" $files \
+            > "$RUNNER_TEMP/aider.log" 2>&1 || true
+          rm -rf .aider*  # aider's chat history and tag cache, never part of the fix
+          { echo "Fixed by Gemma 3 27B via aider."; echo; tail -n 40 "$RUNNER_TEMP/aider.log"; } > "$RUNNER_TEMP/summary.md"
+          cat "$RUNNER_TEMP/aider.log"
 
       - name: Open the PR, or explain on the issue
         if: steps.triage.outputs.skip == ''
