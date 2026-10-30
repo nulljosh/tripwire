@@ -2,7 +2,7 @@ name = "tripwire"
 main = "worker.js"
 compatibility_date = "2025-07-01"
 workers_dev = true
-routes = [{ pattern = "tripwire.heyitsmejosh.com", custom_domain = true }, { pattern = "tripwire.jaybulb.com", custom_domain = true }]
+routes = [{ pattern = "tripwire.jaybulb.com", custom_domain = true }]
 
 [assets]
 directory = "web"

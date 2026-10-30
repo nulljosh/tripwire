@@ -11,22 +11,27 @@ One bold flat white glyph on an accent gradient tile. No text, no outline, no em
 - Clear space equal to the width of the glyph's thickest stroke. Smallest size 16 px.
 
 ## Colour
-| Role | Value |
-|---|---|
-| Accent | `#b3122f` |
-| Gradient top | `#f5405f` |
-| Text | `#1d1d1f` light, `#f5f5f7` dark |
-| Background | `#ffffff` light, `#000000` dark |
-| Surface | `#f5f5f7` light, `#1c1c1e` dark |
+One accent, flat surfaces, no gradients except the icon tile. The landing wears the house layout Hermes set: a thin red frame, full-bleed red bands, and tripwire's own diff cards as band art.
 
-The accent is for actions, links and the icon. Never brown, beige, purple or teal.
+| Role | Light | Dark |
+|---|---|---|
+| Accent (actions, links, bands) | `#b3122f` | `#ff7088` links, `#c8193a` buttons, `#8c0d24` bands |
+| Icon tile | `#f5405f` to `#b3122f` | same |
+| Background | `#fdfdfd` | `#110a0b` |
+| Surface | `#f5f3f4` | `#1d1416` |
+| Line | `#e3dddf` | `#35262a` |
+| Text | `#1a1a1a` | `#f5f2f3` |
+| Secondary text | `#5d5a5c` | `#b1a6a9` |
+| Added / removed in diffs | `#1a7f37` / `#c0392b` | `#4caf6e` / `#ff6b6b` |
+
+Never brown, beige, purple or teal. `tokens.css` here and `web/tokens.css` are the same file.
 
 ## Type
 The system font: `-apple-system, BlinkMacSystemFont, "SF Pro Text", Lato, "Helvetica Neue", Helvetica, Arial, sans-serif`. Scale 34/41 bold, 22/28, 17/24, 15/20, 13/18.
 
 ## Space and shape
 - Space on the 8 point grid: 4, 8, 12, 16, 24, 32, 48. Side margin 20. Reading column 680.
-- Radii: cards 28, grouped lists 20, controls fully round, icon 22 percent.
+- Radii: cards 28, grouped lists 20, landing buttons and panels 2, icon 22 percent.
 - Controls are 48 points tall capsules, one height in a row. Focus is a 4 point ring at 30 percent accent.
 - Motion is 0.2 s ease and honours reduced motion.
 
