@@ -89,35 +89,44 @@ jobs:
           changed, and how you verified it (or exactly why you could not).
           EOF
 
-      # Gemma 3 27B writes the fix (free, Google AI Studio key in GEMINI_API_KEY), driven by aider.
+      # aider writes the fix. Kimi (MOONSHOT_API_KEY, paid, close to Opus on coding) when its key works,
+      # otherwise free Gemma (GEMINI_API_KEY, Google AI Studio).
       # Review happens by hand: Joshua's Claude sessions read the PR before it merges.
       - uses: actions/setup-python@v5
         if: steps.triage.outputs.skip == ''
         with:
           python-version: '3.12'
 
-      - name: Gemma fixes it
+      - name: Kimi or Gemma fixes it
         if: steps.triage.outputs.skip == ''
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
         run: |
           pip install -q aider-chat
           # ponytail: hand aider the files the log names; it can't explore the repo like an agent can
           files=$(grep -oE '[A-Za-z0-9_./-]+\.(js|mjs|cjs|ts|tsx|jsx|py|go|rs|rb|java|kt|swift|json|toml|yml|yaml|sh|css|html)' "$RUNNER_TEMP/failed.log" \
             | sed 's#^\./##' | grep -viE '(^|/)(package-lock|yarn\.lock|pnpm-lock|Package\.resolved|Cargo\.lock|poetry\.lock)' \
             | sort -u | while read -r f; do [ -f "$f" ] && [ "$(wc -c < "$f")" -lt 60000 ] && echo "$f"; done | head -8)
-          # Google renames Gemma releases; ask which ones this key can call and take the biggest.
-          model=$(curl -sf "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=$GEMINI_API_KEY" \
+          # Both vendors rename models; ask each which ones this key can call. Kimi first: newest k-series.
+          model=""
+          kimi() { curl -sf "https://api.moonshot.ai/v1/$1" -H "Authorization: Bearer $MOONSHOT_API_KEY"; }
+          # only with money on the account; otherwise every call fails and there's no fallback
+          if [ -n "$MOONSHOT_API_KEY" ] && [ "$(kimi users/me/balance | jq -r '.data.available_balance // 0 | . > 0' || echo false)" = true ]; then
+            model=$(kimi models | jq -r '[.data[].id | select(test("^kimi-k[0-9]")) | select(test("highspeed|turbo|vision|preview"; "i") | not)]
+              | sort | ((map(select(test("pro"))) | last) // last // empty) | "moonshot/" + .' || true)
+          fi
+          [ -n "$model" ] || model=$(curl -sf "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=$GEMINI_API_KEY" \
             | jq -r '[.models[] | select(.name | test("gemma")) | select(.supportedGenerationMethods | index("generateContent"))
-                | .name | sub("models/"; "")] | sort_by(capture("(?<b>[0-9]+)b") .b | tonumber? // 0) | last // empty')
+                | .name | sub("models/"; "gemini/")] | sort_by(capture("(?<b>[0-9]+)b") .b | tonumber? // 0) | last // empty' || true)
           echo "model=${model:-none}"
-          [ -n "$model" ] || { echo "No Gemma model available to this key." > "$RUNNER_TEMP/summary.md"; exit 0; }
-          aider --model "gemini/$model" --map-tokens 1024 --yes-always --no-auto-commits --no-dirty-commits \
+          [ -n "$model" ] || { echo "No Kimi or Gemma model available to these keys." > "$RUNNER_TEMP/summary.md"; exit 0; }
+          aider --model "$model" --map-tokens 1024 --yes-always --no-auto-commits --no-dirty-commits \
             --no-check-update --no-show-model-warnings --no-pretty --no-stream --no-gitignore \
             --read "$RUNNER_TEMP/failed.log" --message-file "$RUNNER_TEMP/prompt.md" $files \
             > "$RUNNER_TEMP/aider.log" 2>&1 || true
           rm -rf .aider*  # aider's chat history and tag cache, never part of the fix
-          { echo "Fixed by Gemma 3 27B via aider."; echo; tail -n 40 "$RUNNER_TEMP/aider.log"; } > "$RUNNER_TEMP/summary.md"
+          { echo "Fixed by ${model#*/} via aider."; echo; tail -n 40 "$RUNNER_TEMP/aider.log"; } > "$RUNNER_TEMP/summary.md"
           cat "$RUNNER_TEMP/aider.log"
 
       - name: Open the PR, or explain on the issue
