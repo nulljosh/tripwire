@@ -1,13 +1,12 @@
 name: fix
-# Dispatched by the tripwire Worker (ci.js) when a repo's default branch goes red.
-# Claude Code works in a throwaway checkout: reproduce the failing step, fix the root cause,
-# re-run it, then this job opens the PR. If it isn't a code problem, it explains on the issue.
-# The GitHub token never reaches the Claude step; only checkout, log fetch and push see it.
+# Dispatched by the tripwire Worker (ci.js) when a repo's default branch goes red, or by hand with
+# no run_id to work a GitHub issue. A model works in a throwaway checkout and this job opens the PR.
+# If it isn't a code problem, it explains on the issue. The GitHub token never reaches the model step.
 on:
   workflow_dispatch:
     inputs:
       repo: { description: owner/name of the red repo, required: true }
-      run_id: { description: id of the failing run, required: true }
+      run_id: { description: id of the failing run; leave empty to fix the issue itself, required: false }
       issue: { description: tripwire issue number in that repo, required: true }
 
 concurrency: tripwire-fix-${{ inputs.repo }}
@@ -23,7 +22,7 @@ jobs:
       ISSUE: ${{ inputs.issue }}
     steps:
       - name: Check inputs
-        run: '[[ "$REPO" =~ ^nulljosh/[A-Za-z0-9._-]+$ && "$RUN_ID" =~ ^[0-9]+$ && "$ISSUE" =~ ^[0-9]+$ ]] || { echo "bad inputs"; exit 1; }'
+        run: '[[ "$REPO" =~ ^nulljosh/[A-Za-z0-9._-]+$ && "$RUN_ID" =~ ^[0-9]*$ && "$ISSUE" =~ ^[0-9]+$ ]] || { echo "bad inputs"; exit 1; }'
 
       - uses: actions/checkout@v4
         with:
@@ -40,6 +39,10 @@ jobs:
         run: |
           git rev-parse HEAD > "$RUNNER_TEMP/base"
           log="$RUNNER_TEMP/failed.log"; : > "$log"
+          if [ -z "$RUN_ID" ]; then  # issue mode: the issue text is the brief
+            gh issue view "$ISSUE" -R "$REPO" --json title,body -q '"# " + .title + "\n\n" + .body' > "$log"
+            echo "skip=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           jobs=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.conclusion=="failure" or .conclusion=="timed_out") | "\(.id)\t\(.labels | join(","))\t\(.name)"')
           while IFS=$'\t' read -r id labels name; do
             [ -n "$id" ] || continue
@@ -72,7 +75,17 @@ jobs:
       - name: Write the prompt
         if: steps.triage.outputs.skip == ''
         run: |
-          cat > "$RUNNER_TEMP/prompt.md" <<EOF
+          [ -z "$RUN_ID" ] && cat > "$RUNNER_TEMP/prompt.md" <<EOF
+          Fix GitHub issue #$ISSUE in $REPO. You are in a fresh checkout of it. The issue's title
+          and text are at $RUNNER_TEMP/failed.log. Find the code it is about and make the smallest
+          correct change that resolves it, matching the style around it. Do not commit or push,
+          and do not touch unrelated files. If the issue needs a person (an account, a store
+          listing, a design call, hardware), change nothing and say why.
+
+          End with a short plain-English summary for the PR: what was wrong, what you changed,
+          and how someone can check it.
+          EOF
+          [ -n "$RUN_ID" ] && cat > "$RUNNER_TEMP/prompt.md" <<EOF || true
           CI is red on the default branch of $REPO. You are in a fresh checkout of it.
           The failing job's log (last 400 lines) is at $RUNNER_TEMP/failed.log. The workflows
           are in .github/workflows (in a monorepo, find the one whose name matches the log).
@@ -145,10 +158,12 @@ jobs:
             gh issue comment "$ISSUE" -R "$REPO" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           }
-          git diff --cached --quiet || git commit -q -m "tripwire: fix CI failure from run $RUN_ID"
-          branch="tripwire/ci-fix-$RUN_ID"
+          what=${RUN_ID:+CI failure from run $RUN_ID}; what=${what:-issue #$ISSUE}
+          git diff --cached --quiet || git commit -q -m "tripwire: fix $what"
+          branch="tripwire/${RUN_ID:+ci-fix-$RUN_ID}"; [ -n "$RUN_ID" ] || branch="tripwire/issue-$ISSUE"
           git push -q "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/$branch"
           title=$(gh issue view "$ISSUE" -R "$REPO" --json title -q .title | sed 's/CI failing/fix/')
+          [ -n "$RUN_ID" ] || title="Fix: $title"
           { cat "$RUNNER_TEMP/summary.md"; echo; echo "Fixes #$ISSUE"; } > "$RUNNER_TEMP/body.md"
           url=$(gh pr create -R "$REPO" --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md")
           echo "$url"; echo "url=$url" >> "$GITHUB_OUTPUT"
