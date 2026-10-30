@@ -1,0 +1,122 @@
+name: fix
+# Dispatched by the tripwire Worker (ci.js) when a repo's default branch goes red.
+# Claude Code works in a throwaway checkout: reproduce the failing step, fix the root cause,
+# re-run it, then this job opens the PR. If it isn't a code problem, it explains on the issue.
+# The GitHub token never reaches the Claude step; only checkout, log fetch and push see it.
+on:
+  workflow_dispatch:
+    inputs:
+      repo: { description: owner/name of the red repo, required: true }
+      run_id: { description: id of the failing run, required: true }
+      issue: { description: tripwire issue number in that repo, required: true }
+
+concurrency: tripwire-fix-${{ inputs.repo }}
+permissions: {}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      REPO: ${{ inputs.repo }}
+      RUN_ID: ${{ inputs.run_id }}
+      ISSUE: ${{ inputs.issue }}
+    steps:
+      - name: Check inputs
+        run: '[[ "$REPO" =~ ^nulljosh/[A-Za-z0-9._-]+$ && "$RUN_ID" =~ ^[0-9]+$ && "$ISSUE" =~ ^[0-9]+$ ]] || { echo "bad inputs"; exit 1; }'
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          token: ${{ secrets.TRIPWIRE_GH_TOKEN }}
+          persist-credentials: false
+
+      # gh run view --log-failed often comes back empty (it matches jobs by name inside the log zip),
+      # which left Claude with nothing to read. Pull each failed job's log from the API instead.
+      - name: Fetch the failing log
+        id: triage
+        env:
+          GH_TOKEN: ${{ secrets.TRIPWIRE_GH_TOKEN }}
+        run: |
+          git rev-parse HEAD > "$RUNNER_TEMP/base"
+          log="$RUNNER_TEMP/failed.log"; : > "$log"
+          jobs=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.conclusion=="failure" or .conclusion=="timed_out") | "\(.id)\t\(.labels | join(","))\t\(.name)"')
+          while IFS=$'\t' read -r id labels name; do
+            [ -n "$id" ] || continue
+            echo "===== job: $name (runs-on: $labels)" >> "$log"
+            # a job that dies mid-step never uploads its log; the API then returns a 404 body, not a log
+            if body=$(gh api "repos/$REPO/actions/jobs/$id/logs" 2>/dev/null); then tail -n 300 <<< "$body" >> "$log"
+            else gh run view "$RUN_ID" -R "$REPO" --log 2>/dev/null | grep -F "$name"$'\t' | tail -n 300 >> "$log" || true; fi
+          done <<< "$jobs"
+
+          # ponytail: regex triage, not a model call. Add signatures as new non-code failures show up.
+          skip=""
+          if [ "$(grep -vc '^=====' "$log")" -eq 0 ]; then
+            skip="the failing run's log could not be read, so there was nothing to fix from"
+          elif [ -n "$jobs" ] && ! cut -f2 <<< "$jobs" | grep -qv 'macos'; then
+            skip="every failed job runs on macOS (Xcode or simulator), which this Ubuntu fixer cannot reproduce"
+          elif grep -qiE "HttpError: Not Found|rate limit|ETIMEDOUT|ECONNRESET|Could not resolve host|50[234] (Bad Gateway|Service Unavailable|Gateway Time)|Authentication error|Unable to download|curl: \((6|7|28)\)|secret .*(not set|missing)|Input required and not supplied" "$log"; then
+            skip="the log points at infrastructure (an outage, rate limit, download or missing secret), not code: $(grep -m1 -oiE "HttpError: Not Found|rate limit[^.]*|ETIMEDOUT|ECONNRESET|Could not resolve host[^ ]*|50[234] [A-Za-z ]+|Authentication error|Unable to download[^.]*|curl: \([0-9]+\)[^.]*|secret .*(not set|missing)|Input required and not supplied[^.]*" "$log" | head -c 160)"
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          echo "lines=$(wc -l < "$log") skip=${skip:-no}"
+
+      - name: Skip without spending a model run
+        if: steps.triage.outputs.skip != ''
+        env:
+          GH_TOKEN: ${{ secrets.TRIPWIRE_GH_TOKEN }}
+          WHY: ${{ steps.triage.outputs.skip }}
+        run: |
+          gh issue comment "$ISSUE" -R "$REPO" --body "tripwire skipped the fix: $WHY. A person needs to look at this one."
+
+      - uses: actions/setup-node@v4
+        if: steps.triage.outputs.skip == ''
+        with:
+          node-version: 22
+
+      - name: Claude Code fixes it
+        if: steps.triage.outputs.skip == ''
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cat > "$RUNNER_TEMP/prompt.md" <<EOF
+          CI is red on the default branch of $REPO. You are in a fresh checkout of it.
+          The failing job's log (last 400 lines) is at $RUNNER_TEMP/failed.log. The workflows
+          are in .github/workflows (in a monorepo, find the one whose name matches the log).
+
+          1. Find the root cause. Read the code the log points at, not just the last error line.
+          2. Reproduce the failing step locally if this Ubuntu runner has the toolchain.
+          3. Make the smallest correct fix, then re-run the failing step until it passes.
+          Never skip, weaken or delete tests or checks to make them pass. Never edit CI config
+          to hide a failure. Do not commit, do not push, and leave no stray files behind.
+          If it is not a code problem (outage, expired secret, rate limit, flaky network,
+          runner image, macOS-only build you cannot run), change nothing.
+
+          End with a short plain-English summary for the PR: what broke and why, what you
+          changed, and how you verified it (or exactly why you could not).
+          EOF
+          npx -y @anthropic-ai/claude-code@2.1.288 -p "$(cat "$RUNNER_TEMP/prompt.md")" \
+            --model claude-sonnet-5-5 --max-turns 40 --dangerously-skip-permissions \
+            > "$RUNNER_TEMP/summary.md"
+          cat "$RUNNER_TEMP/summary.md"
+
+      - name: Open the PR, or explain on the issue
+        if: steps.triage.outputs.skip == ''
+        env:
+          GH_TOKEN: ${{ secrets.TRIPWIRE_GH_TOKEN }}
+        run: |
+          git config user.name tripwire
+          git config user.email tripwire@users.noreply.github.com
+          git add -A
+          git diff --cached --quiet && git diff --quiet "$(cat "$RUNNER_TEMP/base")" HEAD && {
+            { echo "tripwire looked at this and changed nothing:"; echo; cat "$RUNNER_TEMP/summary.md"; } > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$ISSUE" -R "$REPO" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          }
+          git diff --cached --quiet || git commit -q -m "tripwire: fix CI failure from run $RUN_ID"
+          branch="tripwire/ci-fix-$RUN_ID"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/$branch"
+          title=$(gh issue view "$ISSUE" -R "$REPO" --json title -q .title | sed 's/CI failing/fix/')
+          { cat "$RUNNER_TEMP/summary.md"; echo; echo "Fixes #$ISSUE"; } > "$RUNNER_TEMP/body.md"
+          gh pr create -R "$REPO" --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"

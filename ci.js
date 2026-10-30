@@ -1,11 +1,11 @@
 // CI watch: one issue per red workflow, closed on green, and a Claude Code fix run per issue.
 import { gh, listRepos } from './github.js';
 
-// The fix runs in GitHub Actions (labs .github/workflows/tripwire-fix.yml): Claude Code in a
+// The fix runs in GitHub Actions (.github/workflows/fix.yml): Claude Code in a
 // throwaway checkout reproduces the failure, fixes the root cause, re-runs the step and opens the
 // PR. A Worker can't run a test suite, so it only hands the job off.
-const FIXER = 'nulljosh/labs';
-const dispatchFix = (env, repo, run, issue) => gh(env, `/repos/${FIXER}/actions/workflows/tripwire-fix.yml/dispatches`, {
+const FIXER = 'nulljosh/tripwire';
+const dispatchFix = (env, repo, run, issue) => gh(env, `/repos/${FIXER}/actions/workflows/fix.yml/dispatches`, {
   method: 'POST',
   body: JSON.stringify({ ref: 'main', inputs: { repo, run_id: String(run.id), issue: String(issue) } })
 });
