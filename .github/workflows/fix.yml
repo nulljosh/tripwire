@@ -90,30 +90,15 @@ jobs:
           changed, and how you verified it (or exactly why you could not).
           EOF
 
-      # The brain: Claude Code when the CLAUDE_CODE_OAUTH_TOKEN secret is set, otherwise Gemma 3 27B
-      # (free, Google AI Studio key in GEMINI_API_KEY) driven by aider.
-      - uses: actions/setup-node@v4
-        if: steps.triage.outputs.skip == '' && env.HAS_CLAUDE == 'true'
-        with:
-          node-version: 22
-
-      - name: Claude Code fixes it
-        if: steps.triage.outputs.skip == '' && env.HAS_CLAUDE == 'true'
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          npx -y @anthropic-ai/claude-code@2.1.288 -p "$(cat "$RUNNER_TEMP/prompt.md")" \
-            --model claude-sonnet-5-5 --max-turns 40 --dangerously-skip-permissions \
-            > "$RUNNER_TEMP/summary.md"
-          cat "$RUNNER_TEMP/summary.md"
-
+      # Gemma 3 27B writes the fix (free, Google AI Studio key in GEMINI_API_KEY), driven by aider.
+      # Claude reviews the PR afterwards whenever the CLAUDE_CODE_OAUTH_TOKEN secret is set.
       - uses: actions/setup-python@v5
-        if: steps.triage.outputs.skip == '' && env.HAS_CLAUDE != 'true'
+        if: steps.triage.outputs.skip == ''
         with:
           python-version: '3.12'
 
       - name: Gemma fixes it
-        if: steps.triage.outputs.skip == '' && env.HAS_CLAUDE != 'true'
+        if: steps.triage.outputs.skip == ''
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -130,6 +115,7 @@ jobs:
           cat "$RUNNER_TEMP/aider.log"
 
       - name: Open the PR, or explain on the issue
+        id: pr
         if: steps.triage.outputs.skip == ''
         env:
           GH_TOKEN: ${{ secrets.TRIPWIRE_GH_TOKEN }}
@@ -147,4 +133,24 @@ jobs:
           git push -q "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/$branch"
           title=$(gh issue view "$ISSUE" -R "$REPO" --json title -q .title | sed 's/CI failing/fix/')
           { cat "$RUNNER_TEMP/summary.md"; echo; echo "Fixes #$ISSUE"; } > "$RUNNER_TEMP/body.md"
-          gh pr create -R "$REPO" --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          url=$(gh pr create -R "$REPO" --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md")
+          echo "$url"; echo "url=$url" >> "$GITHUB_OUTPUT"
+          git diff "$(cat "$RUNNER_TEMP/base")" HEAD > "$RUNNER_TEMP/fix.diff"
+
+      - uses: actions/setup-node@v4
+        if: steps.pr.outputs.url != '' && env.HAS_CLAUDE == 'true'
+        with:
+          node-version: 22
+
+      # Read only: Claude sees the log and Gemma's diff, never pushes, and posts one review comment.
+      - name: Claude reviews Gemma's fix
+        if: steps.pr.outputs.url != '' && env.HAS_CLAUDE == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.TRIPWIRE_GH_TOKEN }}
+          PR: ${{ steps.pr.outputs.url }}
+        run: |
+          npx -y @anthropic-ai/claude-code@2.1.288 -p "Review this CI fix written by a smaller model. The failing log is at $RUNNER_TEMP/failed.log and the diff at $RUNNER_TEMP/fix.diff; read the touched files in this checkout as needed. Answer in under 150 words of plain English: does it fix the root cause, is anything wrong or risky, and end with one line, either APPROVE or CHANGES NEEDED with the reason. Do not edit any file." \
+            --model claude-sonnet-5-5 --max-turns 15 --allowedTools Read Grep Glob > "$RUNNER_TEMP/review.md" || exit 0
+          { echo "Claude's review of this fix:"; echo; cat "$RUNNER_TEMP/review.md"; } > "$RUNNER_TEMP/review-body.md"
+          gh pr comment "$PR" --body-file "$RUNNER_TEMP/review-body.md"
