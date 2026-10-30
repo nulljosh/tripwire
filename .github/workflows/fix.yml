@@ -104,8 +104,15 @@ jobs:
           pip install -q aider-chat
           # ponytail: hand aider the files the log names; it can't explore the repo like an agent can
           files=$(grep -oE '[A-Za-z0-9_./-]+\.(js|mjs|cjs|ts|tsx|jsx|py|go|rs|rb|java|kt|swift|json|toml|yml|yaml|sh|css|html)' "$RUNNER_TEMP/failed.log" \
-            | sed 's#^\./##' | sort -u | while read -r f; do [ -f "$f" ] && echo "$f"; done | head -8)
-          aider --model gemini/gemma-3-27b-it --yes-always --no-auto-commits --no-dirty-commits \
+            | sed 's#^\./##' | grep -viE '(^|/)(package-lock|yarn\.lock|pnpm-lock|Package\.resolved|Cargo\.lock|poetry\.lock)' \
+            | sort -u | while read -r f; do [ -f "$f" ] && [ "$(wc -c < "$f")" -lt 60000 ] && echo "$f"; done | head -8)
+          # Google renames Gemma releases; ask which ones this key can call and take the biggest.
+          model=$(curl -sf "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=$GEMINI_API_KEY" \
+            | jq -r '[.models[] | select(.name | test("gemma")) | select(.supportedGenerationMethods | index("generateContent"))
+                | .name | sub("models/"; "")] | sort_by(capture("(?<b>[0-9]+)b") .b | tonumber? // 0) | last // empty')
+          echo "model=${model:-none}"
+          [ -n "$model" ] || { echo "No Gemma model available to this key." > "$RUNNER_TEMP/summary.md"; exit 0; }
+          aider --model "gemini/$model" --map-tokens 1024 --yes-always --no-auto-commits --no-dirty-commits \
             --no-check-update --no-show-model-warnings --no-pretty --no-stream --no-gitignore \
             --read "$RUNNER_TEMP/failed.log" --message-file "$RUNNER_TEMP/prompt.md" $files \
             > "$RUNNER_TEMP/aider.log" 2>&1 || true
