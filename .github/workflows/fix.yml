@@ -121,7 +121,9 @@ jobs:
                 | .name | sub("models/"; "gemini/")] | sort_by(capture("(?<b>[0-9]+)b") .b | tonumber? // 0) | last // empty' || true)
           echo "model=${model:-none}"
           [ -n "$model" ] || { echo "No Kimi or Gemma model available to these keys." > "$RUNNER_TEMP/summary.md"; exit 0; }
-          aider --model "$model" --map-tokens 1024 --yes-always --no-auto-commits --no-dirty-commits \
+          # Kimi rejects any temperature but its own default, so don't send one
+          printf -- '- name: %s\n  use_temperature: false\n' "$model" > "$RUNNER_TEMP/models.yml"
+          aider --model "$model" --model-settings-file "$RUNNER_TEMP/models.yml" --map-tokens 1024 --yes-always --no-auto-commits --no-dirty-commits \
             --no-check-update --no-show-model-warnings --no-pretty --no-stream --no-gitignore \
             --read "$RUNNER_TEMP/failed.log" --message-file "$RUNNER_TEMP/prompt.md" $files \
             > "$RUNNER_TEMP/aider.log" 2>&1 || true
