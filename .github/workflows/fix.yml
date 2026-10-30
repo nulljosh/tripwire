@@ -117,10 +117,39 @@ jobs:
           MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
         run: |
           pip install -q aider-chat
-          # ponytail: hand aider the files the log names; it can't explore the repo like an agent can
-          files=$(grep -oE '[A-Za-z0-9_./-]+\.(js|mjs|cjs|ts|tsx|jsx|py|go|rs|rb|java|kt|swift|json|toml|yml|yaml|sh|css|html)' "$RUNNER_TEMP/failed.log" \
-            | sed 's#^\./##' | grep -viE '(^|/)(package-lock|yarn\.lock|pnpm-lock|Package\.resolved|Cargo\.lock|poetry\.lock)' \
-            | sort -u | while read -r f; do [ -f "$f" ] && [ "$(wc -c < "$f")" -lt 60000 ] && echo "$f"; done | head -8)
+          # ponytail: aider gets one turn, so pick its files up front. Score source files by how many of the
+          # brief's identifiers (backticked words, CamelCase, filenames, longer title words) they contain;
+          # a definition ("struct Foo") counts triple. Top 10, lock files and anything over 60KB left out.
+          cat > "$RUNNER_TEMP/pick.py" <<'PY'
+          import re, subprocess, sys
+          text = open(sys.argv[1], errors="ignore").read()
+          ids = set(re.findall(r"`([^`\n]{2,60})`", text))
+          ids = {w for i in ids for w in re.split(r"[^A-Za-z0-9_]+", i) if len(w) > 2}
+          ids |= set(re.findall(r"\b[A-Z][a-z]+[A-Z][A-Za-z0-9]+\b", text))
+          names = set(re.findall(r"[\w./-]+\.(?:js|mjs|ts|tsx|jsx|py|go|rs|swift|kt|java|rb|json|toml|ya?ml|sh|css|html)\b", text))
+          title = text.splitlines()[0] if text.startswith("# ") else ""
+          words = {w.lower() for w in re.findall(r"[A-Za-z]{5,}", title)} - {"needs", "should", "would", "there", "their", "which", "about"}
+          files = [f for f in subprocess.run(["git", "ls-files"], capture_output=True, text=True).stdout.split("\n")
+                   if re.search(r"\.(js|mjs|ts|tsx|jsx|py|go|rs|swift|kt|java|rb|css|html)$", f)
+                   and not re.search(r"(^|/)(node_modules|vendor|dist|build)/|\.min\.", f)]
+          scored = []
+          for f in files:
+              try:
+                  src = open(f, errors="ignore").read()
+              except OSError:
+                  continue
+              if len(src) > 60000:
+                  continue
+              n = 5 * any(f.endswith(x.lstrip("./")) for x in names)
+              n += sum(3 if re.search(r"\b(struct|class|enum|func|function|def|interface|type|extension|const)\s+" + re.escape(i) + r"\b", src) else 1
+                       for i in ids if i in src)
+              n += sum(1 for w in words if w in src.lower())
+              if n:
+                  scored.append((n, f))
+          print("\n".join(f for _, f in sorted(scored, reverse=True)[:10]))
+          PY
+          files=$(python3 "$RUNNER_TEMP/pick.py" "$RUNNER_TEMP/failed.log")
+          echo "files: $(echo $files)"
           # Both vendors rename models; ask each which ones this key can call. Kimi first: newest k-series.
           model=""
           kimi() { curl -sf "https://api.moonshot.ai/v1/$1" -H "Authorization: Bearer $MOONSHOT_API_KEY"; }
@@ -136,10 +165,22 @@ jobs:
           [ -n "$model" ] || { echo "No Kimi or Gemma model available to these keys." > "$RUNNER_TEMP/summary.md"; exit 0; }
           # Kimi rejects any temperature but its own default, so don't send one
           printf -- '- name: %s\n  use_temperature: false\n' "$model" > "$RUNNER_TEMP/models.yml"
-          aider --model "$model" --model-settings-file "$RUNNER_TEMP/models.yml" --map-tokens 1024 --yes-always --no-auto-commits --no-dirty-commits \
-            --no-check-update --no-show-model-warnings --no-pretty --no-stream --no-gitignore \
-            --read "$RUNNER_TEMP/failed.log" --message-file "$RUNNER_TEMP/prompt.md" $files \
-            > "$RUNNER_TEMP/aider.log" 2>&1 || true
+          run_aider() {
+            aider --model "$model" --model-settings-file "$RUNNER_TEMP/models.yml" --map-tokens 1024 --yes-always --no-auto-commits --no-dirty-commits \
+              --no-check-update --no-show-model-warnings --no-pretty --no-stream --no-gitignore \
+              --read "$RUNNER_TEMP/failed.log" --message-file "$1" $2 >> "$RUNNER_TEMP/aider.log" 2>&1 || true
+          }
+          run_aider "$RUNNER_TEMP/prompt.md" "$files"
+          # Second turn: if it asked for code instead of editing, hand over what it named and go again.
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard | grep -v '^\.aider')" ]; then
+            more=$(python3 "$RUNNER_TEMP/pick.py" "$RUNNER_TEMP/aider.log")
+            files2=$(printf '%s\n%s\n' "$files" "$more" | grep . | sort -u | head -14)
+            if [ "$files2" != "$(printf '%s\n' "$files" | grep . | sort -u)" ]; then
+              echo "second pass files: $(echo $files2)"
+              { echo "The files you asked for are now in the chat. Make the change now, don't ask again."; echo; cat "$RUNNER_TEMP/prompt.md"; } > "$RUNNER_TEMP/prompt2.md"
+              run_aider "$RUNNER_TEMP/prompt2.md" "$files2"
+            fi
+          fi
           rm -rf .aider*  # aider's chat history and tag cache, never part of the fix
           { echo "Fixed by ${model#*/} via aider."; echo; tail -n 40 "$RUNNER_TEMP/aider.log"; } > "$RUNNER_TEMP/summary.md"
           cat "$RUNNER_TEMP/aider.log"
