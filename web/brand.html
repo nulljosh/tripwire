@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tripwire Brand Kit</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="tokens.css">
+<meta name="description" content="Tripwire brand kit: the icon, colour, type, space and shape.">
+<style>
+* { box-sizing: border-box; margin: 0; }
+body { font-family: var(--font); font-size: var(--size-body); line-height: 24px; color: var(--text); background: var(--bg); -webkit-font-smoothing: antialiased; }
+main { max-width: var(--wrap); margin: 0 auto; padding: var(--sp-8) 20px var(--sp-9); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-8); }
+h1 { font-size: 120px; line-height: 128px; font-weight: 700; letter-spacing: -.045em; }
+h2 { font-size: 56px; line-height: 56px; font-weight: 700; letter-spacing: -.035em; margin-bottom: var(--sp-5); }
+.sub { color: var(--sub); }
+.foot { font-size: var(--size-footnote); line-height: 16px; color: var(--sub); }
+.head { display: flex; align-items: center; gap: var(--sp-5); }
+.row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-6); }
+.row figure { display: grid; justify-items: center; gap: var(--sp-2); }
+.card { background: var(--surface); border-radius: var(--r-card); padding: var(--sp-6); }
+.marks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+.marks div { border-radius: var(--r-group); border: 1px solid var(--line); padding: var(--sp-6); display: grid; place-items: center; }
+.mark { width: 160px; height: 160px; -webkit-mask: url(mark.svg) center / contain no-repeat; mask: url(mark.svg) center / contain no-repeat; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-4); }
+.sw { border-radius: var(--r-group); overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
+.sw i { display: flex; height: 72px; }
+.sw i b { flex: 1; }
+.sw p { padding: var(--sp-3) var(--sp-4); font-size: var(--size-footnote); line-height: 16px; }
+.sw p span { display: block; color: var(--sub); }
+.specimen { font-size: 120px; line-height: 120px; font-weight: 700; letter-spacing: -0.01em; }
+.weights { display: grid; gap: var(--sp-2); font-size: 34px; line-height: 44px; }
+.scale { display: grid; gap: var(--sp-4); }
+.scale div { display: grid; grid-template-columns: 140px 1fr; align-items: baseline; gap: var(--sp-4); }
+.glyphs { font-size: 28px; line-height: 40px; word-break: break-all; }
+.space { display: grid; gap: var(--sp-2); }
+.space div { display: flex; align-items: center; gap: var(--sp-4); font-size: var(--size-footnote); }
+.space b { display: block; height: 16px; background: var(--accent); border-radius: 4px; }
+.radii { display: flex; flex-wrap: wrap; gap: var(--sp-5); }
+.radii div { width: 120px; height: 96px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: end start; padding: var(--sp-3); font-size: var(--size-footnote); }
+.btn { display: inline-flex; align-items: center; height: 40px; padding: 0 var(--sp-4); border-radius: var(--r-sq); font: 600 15px var(--font); border: 1px solid transparent; }
+.btn-solid { background: var(--btn); color: #fff; }
+.btn-ghost { background: var(--surface); color: var(--text); border-color: var(--line); }
+.diff { font: 13px/20px ui-monospace, SFMono-Regular, Menlo, monospace; padding: var(--sp-3) var(--sp-4); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+.states { display: flex; flex-wrap: wrap; gap: var(--sp-5); font-size: 15px; }
+.states span { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.states i { width: 10px; height: 10px; border-radius: 50%; }
+@media (max-width: 600px) { .head { flex-wrap: wrap; } h1 { font-size: 64px; line-height: 72px; } .specimen.disp { line-height: 84px; } .specimen { font-size: 56px; line-height: 60px; } .marks { grid-template-columns: 1fr; } .scale div { grid-template-columns: 1fr; gap: 0; } }
+</style>
+</head>
+<body>
+<main>
+  <section class="head">
+    <a href="/" aria-label="Tripwire home"><img src="icon.svg" width="96" height="96" alt=""></a>
+    <div><h1>Tripwire</h1><p class="sub">Brand kit and design system. Every value here is read live from tokens.css.</p></div>
+  </section>
+
+  <section>
+    <h2>The mark</h2>
+    <div class="card">
+      <div class="row">
+        <figure><img src="icon.svg" width="256" height="256" alt=""><figcaption class="foot">256</figcaption></figure>
+        <figure><img src="icon.svg" width="128" height="128" alt=""><figcaption class="foot">128</figcaption></figure>
+        <figure><img src="icon.svg" width="64" height="64" alt=""><figcaption class="foot">64</figcaption></figure>
+        <figure><img src="favicon.svg" width="32" height="32" alt=""><figcaption class="foot">32, small cut</figcaption></figure>
+        <figure><img src="favicon.svg" width="16" height="16" alt=""><figcaption class="foot">16</figcaption></figure>
+      </div>
+    </div>
+    <div class="marks" style="margin-top: var(--sp-4)">
+      <div style="background:#fdfdfd"><b class="mark" style="background:#b3122f"></b></div>
+      <div style="background:#110a0b"><b class="mark" style="background:#f5f2f3"></b></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Colour</h2>
+    <div class="swatches" id="swatches"></div>
+    <p class="foot" style="margin-top: var(--sp-3)">Each chip: light on the left, dark on the right. Red is the only colour Tripwire owns: the accent, the buttons, the frame and the full-bleed band. Green and red inside a diff mean added and removed, nothing else.</p>
+  </section>
+
+  <section>
+    <h2>Type</h2>
+    <div class="card" style="display:grid;gap:var(--sp-6)">
+      <div>
+        <p class="specimen">San Francisco</p>
+        <p class="sub">The system font, nothing to load. SF on Apple devices, Helvetica or Arial elsewhere. Headlines are bold and tracked tight. Code and diffs use the system monospace.</p>
+      </div>
+      <div class="weights">
+        <p style="font-weight:400">Regular 400 Stripe renamed a field</p>
+        <p style="font-weight:500">Medium 500 3 files call it</p>
+        <p style="font-weight:600">Semibold 600 CI is red on main</p>
+        <p style="font-weight:700">Bold 700 Know before prod does</p>
+      </div>
+      <div class="scale">
+        <div><span class="foot">Display 64/64 bold</span><span style="font-size:64px;line-height:64px;font-weight:700;letter-spacing:-0.045em">Tripwire</span></div>
+        <div><span class="foot">Title 34/40 bold</span><span style="font-size:34px;line-height:40px;font-weight:700">Changelogs exist</span></div>
+        <div><span class="foot">Headline 20/28 semibold</span><span style="font-size:20px;line-height:28px;font-weight:600">A PR with the fix</span></div>
+        <div><span class="foot">Body 17/24</span><span>Tripwire tells you what broke, in your code.</span></div>
+        <div><span class="foot">Footnote 13/16</span><span class="foot">tripwire[bot] opened this issue &middot; breaking-api</span></div>
+      </div>
+      <p class="glyphs">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 &amp; ? ! @ $ % ( ) &rarr;</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Space and shape</h2>
+    <div class="card" style="display:grid;gap:var(--sp-6)">
+      <div class="space" id="space"></div>
+      <div class="radii">
+        <div style="border-radius:var(--r-row)">row 8</div>
+        <div style="border-radius:var(--r-group)">group 20</div>
+        <div style="border-radius:var(--r-card)">card 28</div>
+        <div style="border-radius:22.5%">icon 22.5%</div>
+        <div style="border-radius:var(--r-sq)">web 2</div>
+      </div>
+      <div class="row" style="align-items:center">
+        <button class="btn btn-solid">Get it on GitHub</button>
+        <button class="btn btn-ghost">See what it does</button>
+        <span class="foot">On the web, buttons are 40 point squares with a 2 point radius. In the terminal client and any native surface, controls are 48 point capsules.</span>
+      </div>
+      <pre class="diff"><span style="color:var(--bad)">- POST /v1/charges</span>
+<span style="color:var(--bad)">- charges.customer_id</span>
+<span style="color:var(--live)">+ charges.customer</span></pre>
+    </div>
+  </section>
+</main>
+<script>
+// Swatches and the space scale come straight from tokens.css, so this page can never drift from it.
+(async function () {
+  var css = await (await fetch('tokens.css')).text();
+  var dark = (css.split('prefers-color-scheme: dark')[1] || '');
+  function val(block, name) { var m = block.match(new RegExp('--' + name + ':\\s*(#[0-9a-fA-F]{6})')); return m && m[1]; }
+  var light = css.split('prefers-color-scheme: dark')[0];
+  var roles = [['accent', 'Accent'], ['btn', 'Button'], ['band', 'Band'], ['band-sub', 'Band text'], ['band-art', 'Band art'], ['bg', 'Background'], ['surface', 'Surface'], ['line', 'Line'], ['text', 'Text'], ['sub', 'Secondary'],
+               ['live', 'Added'], ['bad', 'Removed'], ['accent-light', 'Icon top'], ['accent-deep', 'Icon bottom']];
+  document.getElementById('swatches').innerHTML = roles.map(function (r) {
+    var l = val(light, r[0]), d = val(dark, r[0]) || l;
+    return '<div class="sw"><i><b style="background:' + l + '"></b><b style="background:' + d + '"></b></i><p>' + r[1] + '<span>' + l + (d !== l ? ' / ' + d : '') + '</span></p></div>';
+  }).join('');
+  var sp = [...light.matchAll(/--sp-(\d): (\d+)px/g)];
+  document.getElementById('space').innerHTML = sp.map(function (m) { return '<div><b style="width:' + m[2] + 'px"></b>sp-' + m[1] + ' &middot; ' + m[2] + '</div>'; }).join('');
+})();
+</script>
+</body>
+</html>

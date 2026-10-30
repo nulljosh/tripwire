@@ -8,7 +8,9 @@ One bold flat white glyph on an accent gradient tile. No text, no outline, no em
 - `../Tripwire.icon` is the source of truth (Icon Composer). Light and dark fills are set in it.
 - `../icon.svg` is the flat copy for READMEs (shown at 80 px). `icon-1024.png` is the App Store icon, no alpha.
 - `mark.svg` is the glyph alone in `currentColor` for your own background.
-- Clear space equal to the width of the glyph's thickest stroke. Smallest size 16 px.
+- Clear space equal to the width of the glyph's thickest stroke.
+- The wire is a 96 unit stroke on the 1024 grid. At 32 px and below use `web/favicon.svg`, the small cut: a 150 unit stroke and a taller snag, so it still reads at 16 px.
+- The live kit, with every value read from `tokens.css`, is at tripwire.jaybulb.com/brand.
 
 ## Colour
 One accent, flat surfaces, no gradients except the icon tile. The landing wears the house layout Hermes set: a thin red frame, full-bleed red bands, and tripwire's own diff cards as band art.
