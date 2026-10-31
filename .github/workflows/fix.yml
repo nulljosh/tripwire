@@ -155,6 +155,7 @@ jobs:
           kimi() { curl -sf "https://api.moonshot.ai/v1/$1" -H "Authorization: Bearer $MOONSHOT_API_KEY"; }
           # only with money on the account; otherwise every call fails and there's no fallback
           if [ -n "$MOONSHOT_API_KEY" ] && [ "$(kimi users/me/balance | jq -r '.data.available_balance // 0 | . > 0' || echo false)" = true ]; then
+            echo "kimi balance before: $(kimi users/me/balance | jq -r .data.available_balance)"
             echo "kimi models: $(kimi models | jq -r '[.data[].id] | join(" ")')"
             # fast variant first: the thinking "pro" model takes 10 to 20 minutes per fix
             model=$(kimi models | jq -r '[.data[].id | select(test("^kimi-k[0-9]")) | select(test("vision"; "i") | not)] | sort
@@ -183,6 +184,7 @@ jobs:
               run_aider "$RUNNER_TEMP/prompt2.md" "$files2"
             fi
           fi
+          case $model in moonshot/*) echo "kimi balance after: $(kimi users/me/balance | jq -r .data.available_balance)";; esac
           rm -rf .aider*  # aider's chat history and tag cache, never part of the fix
           { echo "Fixed by ${model#*/} via aider."; echo; tail -n 40 "$RUNNER_TEMP/aider.log"; } > "$RUNNER_TEMP/summary.md"
           cat "$RUNNER_TEMP/aider.log"
