@@ -3,18 +3,18 @@
 :root {
   /* colour */
   --accent: #b5502c;          /* actions and links, AA on white */
-  --btn: #b3122f;             /* solid buttons, white label */
-  --frame: #b3122f;           /* the thin frame down the window edges */
-  --band: #b3122f;            /* full-bleed red sections */
-  --band-sub: #fbd9df;        /* secondary text on the band, AA */
-  --band-art: #f7a3b1;        /* the diff wall on the band */
+  --btn: #b5502c;             /* solid buttons, white label */
+  --frame: #b5502c;           /* the thin frame down the window edges */
+  --band: #b5502c;            /* full-bleed red sections */
+  --band-sub: #f6dccf;        /* secondary text on the band, AA */
+  --band-art: #e8a88a;        /* the diff wall on the band */
   --band-line: rgba(255, 255, 255, .22);
   --accent-light: #e07a4f;    /* icon gradient top */
   --accent-deep: #b5502c;     /* icon gradient bottom */
   --ring: color-mix(in srgb, var(--accent) 30%, transparent);
   --bg: #fdfdfd;
-  --surface: #f5f3f4;
-  --line: #e3dddf;
+  --surface: #f5f3f2;
+  --line: #e3dedb;
   --text: #1a1a1a;
   --sub: #5d5a5c;
   --live: #1a7f37;            /* open issue, added field */
@@ -36,15 +36,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --accent: #ff7088;
-    --btn: #c8193a;
-    --frame: #c8193a;
-    --band: #8c0d24;
-    --band-sub: #f6c9d1;
-    --band-art: #e8788c;
-    --bg: #110a0b;
-    --surface: #1d1416;
-    --line: #35262a;
+    --accent: #e8875f;
+    --btn: #c25a33;
+    --frame: #c25a33;
+    --band: #7a3219;
+    --band-sub: #f3d3c4;
+    --band-art: #d98a68;
+    --bg: #110c0a;
+    --surface: #1d1714;
+    --line: #352a25;
     --text: #f5f2f3;
     --sub: #b1a6a9;
     --live: #4caf6e;
