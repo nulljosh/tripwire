@@ -155,8 +155,10 @@ jobs:
           kimi() { curl -sf "https://api.moonshot.ai/v1/$1" -H "Authorization: Bearer $MOONSHOT_API_KEY"; }
           # only with money on the account; otherwise every call fails and there's no fallback
           if [ -n "$MOONSHOT_API_KEY" ] && [ "$(kimi users/me/balance | jq -r '.data.available_balance // 0 | . > 0' || echo false)" = true ]; then
-            model=$(kimi models | jq -r '[.data[].id | select(test("^kimi-k[0-9]")) | select(test("highspeed|turbo|vision|preview"; "i") | not)]
-              | sort | ((map(select(test("pro"))) | last) // last // empty) | "moonshot/" + .' || true)
+            echo "kimi models: $(kimi models | jq -r '[.data[].id] | join(" ")')"
+            # fast variant first: the thinking "pro" model takes 10 to 20 minutes per fix
+            model=$(kimi models | jq -r '[.data[].id | select(test("^kimi-k[0-9]")) | select(test("vision"; "i") | not)] | sort
+              | ((map(select(test("highspeed|turbo"; "i"))) | last) // (map(select(test("pro|preview"; "i") | not)) | last) // last // empty) | "moonshot/" + .' || true)
           fi
           [ -n "$model" ] || model=$(curl -sf "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=$GEMINI_API_KEY" \
             | jq -r '[.models[] | select(.name | test("gemma")) | select(.supportedGenerationMethods | index("generateContent"))
