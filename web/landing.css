@@ -160,3 +160,15 @@ h3 { font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: -.02e
 /* no engraving above the band head: the copy starts the band */
 .band-copy { margin-top: 0; padding-top: var(--sp-9); }
 .stage { padding-block: clamp(32px, 7vw, 112px); }
+
+/* Demo behind the hero (Joshua 2026-10-30): the live app sits under the copy, faded, as the hero's backdrop. */
+.hero { position: relative; isolation: isolate; overflow: hidden; min-height: min(92svh, 920px); display: grid; align-items: center; }
+.hero > .hero-copy { position: relative; z-index: 2; padding-block: var(--sp-9, 96px); }
+.hero > .demo-wrap { position: absolute; inset: 0; z-index: 0; margin: 0; opacity: .32 !important; transform: none !important; pointer-events: none; }
+.hero > .demo-wrap .stage { position: absolute; inset: 0; padding: 0; background: none; display: grid; place-items: center; }
+.hero > .demo-wrap .stage > iframe, .hero > .demo-wrap .stage > .editor { height: 100%; max-height: none; border-radius: 0; }
+.hero > .demo-wrap .demo-hint { display: none; }
+.hero::after { content: ""; position: absolute; inset: 0; z-index: 1; background: color-mix(in srgb, var(--bg) 40%, transparent); }
+/* Footer scene from Atlin: the engraved harbour in this app's accent. */
+.foot { --scene-paper: var(--bg); --scene-ink: var(--accent); padding-bottom: 0; }
+.footer-scene { display: block; width: 100%; height: clamp(150px, 24vw, 340px); margin-top: var(--sp-6, 32px); }
