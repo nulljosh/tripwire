@@ -11,4 +11,3 @@ Direct call from Joshua after a mixup where he assumed tripwire already watched 
 - `tripwire-tui` SwiftPM target (SwiftTUI). `swift build && ./.build/debug/tripwire-tui` shows the last watch report as a terminal card. Needs a real TTY.
 
 ## Own repo
-- [x] Moved out of labs into its own repo `nulljosh/tripwire`, history kept, fixer workflow moved with it (2026-10-30).
