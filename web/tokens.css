@@ -2,15 +2,15 @@
    Shared house system: 8 point grid, one radius set, 48 point capsule controls, the system font. Red is the only colour Tripwire owns. */
 :root {
   /* colour */
-  --accent: #b3122f;          /* actions and links, AA on white */
+  --accent: #b5502c;          /* actions and links, AA on white */
   --btn: #b3122f;             /* solid buttons, white label */
   --frame: #b3122f;           /* the thin frame down the window edges */
   --band: #b3122f;            /* full-bleed red sections */
   --band-sub: #fbd9df;        /* secondary text on the band, AA */
   --band-art: #f7a3b1;        /* the diff wall on the band */
   --band-line: rgba(255, 255, 255, .22);
-  --accent-light: #f5405f;    /* icon gradient top */
-  --accent-deep: #b3122f;     /* icon gradient bottom */
+  --accent-light: #e07a4f;    /* icon gradient top */
+  --accent-deep: #b5502c;     /* icon gradient bottom */
   --ring: color-mix(in srgb, var(--accent) 30%, transparent);
   --bg: #fdfdfd;
   --surface: #f5f3f4;

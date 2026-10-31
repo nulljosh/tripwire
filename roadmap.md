@@ -13,5 +13,5 @@ Direct call from Joshua after a mixup where he assumed tripwire already watched 
 ## Own repo
 
 ## Ingested 2026-10-30
-- [ ] Refresh landing page: remove title from h1, make it a CTA
-- [ ] Make the color nicer, red is scary
+- [x] Refresh landing page: remove title from h1, make it a CTA
+- [x] Make the color nicer, red is scary
