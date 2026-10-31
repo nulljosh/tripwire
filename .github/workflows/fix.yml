@@ -8,6 +8,7 @@ on:
       repo: { description: owner/name of the red repo, required: true }
       run_id: { description: id of the failing run; leave empty to fix the issue itself, required: false }
       issue: { description: tripwire issue number in that repo, required: true }
+      files: { description: optional space-separated paths to hand the model in issue mode, required: false }
 
 concurrency: tripwire-fix-${{ inputs.repo }}
 permissions: {}
@@ -20,6 +21,7 @@ jobs:
       REPO: ${{ inputs.repo }}
       RUN_ID: ${{ inputs.run_id }}
       ISSUE: ${{ inputs.issue }}
+      FILES: ${{ inputs.files }}
     steps:
       - name: Check inputs
         run: '[[ "$REPO" =~ ^nulljosh/[A-Za-z0-9._-]+$ && "$RUN_ID" =~ ^[0-9]*$ && "$ISSUE" =~ ^[0-9]+$ ]] || { echo "bad inputs"; exit 1; }'
@@ -41,6 +43,7 @@ jobs:
           log="$RUNNER_TEMP/failed.log"; : > "$log"
           if [ -z "$RUN_ID" ]; then  # issue mode: the issue text is the brief
             gh issue view "$ISSUE" -R "$REPO" --json title,body -q '"# " + .title + "\n\n" + .body' > "$log"
+            [ -z "$FILES" ] || printf '\nFiles: %s\n' "$FILES" >> "$log"  # named files score highest in pick.py
             echo "skip=" >> "$GITHUB_OUTPUT"; exit 0
           fi
           jobs=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.conclusion=="failure" or .conclusion=="timed_out") | "\(.id)\t\(.labels | join(","))\t\(.name)"')
