@@ -13,3 +13,6 @@ Direct call from Joshua after a mixup where he assumed tripwire already watched 
 ## Own repo
 
 ## Ingested 2026-10-30
+
+## Ingested 2026-11-16
+- [ ] (Note "Tripwire") Is it working? Test it on a few issues: fix them with code, test and resolve.
