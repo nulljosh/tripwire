@@ -16,3 +16,11 @@ Direct call from Joshua after a mixup where he assumed tripwire already watched 
 
 ## Ingested 2026-11-16
 - [ ] (Note "Tripwire") Is it working? Test it on a few issues: fix them with code, test and resolve.
+
+## Ingested 2026-11-23
+
+- [ ] **Tripwire**: Read me screenshots are either stale or the landing page has the wrong color. need to sign on the colour palette
+  - Confirm it actually works. Run it a few times + QA
+  - Read me way too spammy and wordy. It needs to be cleaned up. Simplify
+- [ ] **Tripwire**: Inspo
+  - Screenshots (not yet read): `notes/attachments/2026-11-23/22963-1.png`
